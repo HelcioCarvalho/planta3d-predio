@@ -1,0 +1,2660 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maquete 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --fundo: #e4e4dc;
+    --papel: #f3f2ed;
+    --tinta: #1b1e1c;
+    --suave: #686c66;
+    --linha: #cfcfc6;
+    --destaque: #2a3ab8;
+    --vendido: #777a74;
+    --sombra-modal: 0 24px 70px rgb(27 30 28 / .25);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    overflow: hidden;
+    background: var(--fundo);
+    color: var(--tinta);
+    font: 400 15px/1.45 "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  button, input, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; background: none; border: 0; padding: 0; }
+  button:disabled { cursor: default; opacity: .35; }
+  :focus-visible { outline: 2px solid var(--destaque); outline-offset: 2px; }
+
+  #cena { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; transition: opacity .35s; }
+  body[data-vista="planta"] #cena { opacity: 0; pointer-events: none; }
+  .veu {
+    position: fixed; inset: 0; pointer-events: none;
+    background:
+      linear-gradient(90deg, var(--fundo) 0, color-mix(in srgb, var(--fundo) 86%, transparent) 20%, transparent 40%),
+      linear-gradient(270deg, var(--fundo) 0, color-mix(in srgb, var(--fundo) 84%, transparent) 18%, transparent 32%),
+      linear-gradient(0deg, var(--fundo) 0, transparent 18%),
+      linear-gradient(180deg, var(--fundo) 0, transparent 12%);
+  }
+
+  .topo {
+    position: fixed; inset: 0 0 auto; z-index: 5;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 20px 44px; pointer-events: none;
+  }
+  .topo > * { pointer-events: auto; }
+  .marca { display: block; text-align: left; }
+  .marca b { display: block; font-size: 13px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; }
+  .marca span { font-size: 12px; color: var(--suave); }
+  .nav { display: flex; align-items: center; gap: 28px; font-size: 14px; }
+  .nav .texto { padding: 6px 0; border-bottom: 1px solid transparent; }
+  .nav .texto:hover { border-color: currentColor; }
+  .nav .curto { display: none; }
+  .caixa { padding: 10px 16px; border: 1px solid var(--tinta); border-radius: 2px; }
+  .caixa:hover { background: var(--tinta); color: var(--papel); }
+
+  /* Vista do prédio */
+  .vista { position: fixed; inset: 0; z-index: 2; pointer-events: none; transition: opacity .3s; }
+  .vista[hidden] { display: none; }
+  .vista > * { pointer-events: auto; }
+  .chamada { position: absolute; left: 44px; bottom: 44px; width: min(320px, 30vw); pointer-events: none; }
+  .chamada h1 { margin: 0 0 14px; font-size: clamp(32px, 3.5vw, 50px); line-height: 1.04; font-weight: 500; letter-spacing: -.025em; }
+  .chamada p { margin: 0 0 24px; color: var(--suave); font-size: 14px; }
+  .numeros { display: grid; grid-template-columns: 1fr 1.4fr; gap: 12px 24px; margin: 0; }
+  .numeros dt { font-size: 12px; color: var(--suave); }
+  .numeros dd { margin: 0; font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  .andares { position: absolute; right: 44px; top: 50%; translate: 0 -46%; width: 250px; }
+  .andares h2 { margin: 0 0 8px; font-size: 13px; font-weight: 400; color: var(--suave); }
+  .andares ol { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--linha); }
+  .andares li { border-bottom: 1px solid var(--linha); }
+  .andar {
+    display: grid; grid-template-columns: 34px 1fr auto; align-items: center; width: 100%;
+    padding: 6px 0; text-align: left; font-size: 13px; color: var(--suave);
+  }
+  .andar b { font-size: 15px; font-weight: 600; color: var(--tinta); font-variant-numeric: tabular-nums; }
+  .andar:hover, .andar.ativo, .andar.ativo b { color: var(--destaque); }
+  .quadros { display: flex; gap: 3px; }
+  .q { width: 11px; height: 11px; border: 1px solid var(--vendido); border-radius: 1px; flex: none; }
+  .q.vendido { background: var(--vendido); }
+  .q.reservado { background: linear-gradient(135deg, transparent 44%, var(--vendido) 44% 56%, transparent 56%); }
+
+  .dica-base { margin: 10px 0 0; font-size: 12px; color: var(--suave); }
+  body[data-vista="predio"] { --fundo: var(--ceu, #e4e4dc); }
+  body[data-vista="predio"].escuro, .quadro-3d.escuro { --tinta: #ecebe4; --suave: #a3a9b6; --linha: #3d4456; --papel: #262c3a; --vendido: #8d93a0; }
+  body[data-vista="predio"].escuro .caixa:hover { color: #151a24; }
+  .quadro-3d.escuro { color: var(--tinta); }
+  .sol { position: absolute; left: 50%; bottom: 18px; translate: -50% 0; width: min(440px, calc(100vw - 32px)); padding: 10px 14px 8px; background: color-mix(in srgb, var(--papel) 82%, transparent); border: 1px solid var(--linha); border-radius: 2px; backdrop-filter: blur(6px); }
+  .sol[hidden] { display: none; }
+  .sol.no-apto { left: 10px; right: auto; top: auto; bottom: 10px; translate: none; width: min(420px, calc(100% - 20px)); z-index: 3; }
+  .sol-ponto { position: absolute; z-index: 4; width: 28px; height: 28px; margin: -14px 0 0 -14px; display: grid; place-items: center; font-size: 16px; line-height: 1; color: #c26a12; background: color-mix(in srgb, var(--papel) 86%, transparent); border: 1.5px solid #e29a45; border-radius: 50%; pointer-events: none; }
+  .vista > .sol-ponto { pointer-events: none; }
+  .sol-ponto[hidden] { display: none; }
+  .sol-linha { display: flex; align-items: center; gap: 12px; }
+  .sol-tocar { width: 30px; height: 30px; flex: none; border: 1px solid var(--tinta); border-radius: 50%; font-size: 11px; }
+  .sol-hora { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .sol-hora input { flex: 1; min-width: 0; accent-color: var(--destaque); }
+  .sol select { padding: 5px 6px; background: transparent; border: 1px solid var(--linha); border-radius: 2px; font-size: 13px; color: var(--tinta); }
+  .sol select option { color: #1b1e1c; }
+  .sol p { margin: 6px 0 0; font-size: 12px; color: var(--suave); }
+  @media (max-width: 1180px) and (min-width: 901px) { .sol { bottom: auto; top: 76px; } }
+  .rotulo { position: fixed; z-index: 3; pointer-events: none; color: var(--destaque); font-size: 13px; text-align: right; translate: -100% -50%; padding-right: 44px; white-space: nowrap; }
+  .rotulo::after { content: ""; position: absolute; right: 6px; top: 50%; width: 30px; border-top: 1px solid currentColor; }
+  .rotulo b { display: block; font-weight: 600; }
+  .rotulo span { color: var(--tinta); font-size: 12px; }
+
+  /* Vista da planta */
+  .planta-vista { display: grid; grid-template-columns: minmax(0, 1fr) auto; background: var(--fundo); padding-top: 84px; }
+  .planta-area { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: 0 44px 12px; }
+  .barra { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; padding-bottom: 14px; border-bottom: 1px solid var(--linha); font-size: 13px; color: var(--suave); }
+  .voltar { display: inline-flex; gap: 10px; align-items: center; color: var(--tinta); font-size: 14px; }
+  .voltar:hover { color: var(--destaque); }
+  .barra h2 { margin: 0; padding-left: 22px; border-left: 1px solid var(--linha); font-size: 24px; font-weight: 500; letter-spacing: -.015em; color: var(--tinta); }
+  .setas { display: flex; gap: 8px; }
+  .setas button { width: 34px; height: 34px; background: var(--papel); border: 1px solid var(--linha); border-radius: 2px; color: var(--tinta); }
+  .setas button:not(:disabled):hover { border-color: var(--tinta); }
+  .legenda { display: flex; gap: 16px; margin-left: auto; font-size: 12px; }
+  .legenda span { display: inline-flex; align-items: center; gap: 6px; }
+  .quadro-planta { flex: 1; min-height: 0; overflow: auto; display: grid; place-items: center; padding: 8px 0; }
+  .quadro-planta svg { display: block; width: 100%; height: 100%; max-height: 100%; min-width: 620px; }
+  .quadro-planta[hidden], .quadro-3d[hidden], .legenda[hidden], .modos[hidden] { display: none; }
+  .quadro-3d { position: relative; flex: 1; min-height: 0; overflow: hidden; background: var(--ceu, var(--fundo)); }
+  #cena-apto { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+  #cena-apto:active { cursor: grabbing; }
+  .etiquetas { position: absolute; inset: 0; pointer-events: none; }
+  .etq { position: absolute; left: 0; top: 0; padding: 1px 6px; font-size: 11px; line-height: 1.25; text-align: center; white-space: nowrap; color: var(--suave); background: color-mix(in srgb, var(--papel) 72%, transparent); border-radius: 2px; }
+  .etq b { display: block; font-weight: 600; color: var(--tinta); }
+  .etq.ativa { background: var(--destaque); color: #fff; z-index: 1; }
+  .etq.ativa b { color: #fff; }
+  .modos { display: flex; margin-left: auto; border: 1px solid var(--tinta); border-radius: 2px; }
+  .modos button { padding: 7px 16px; font-size: 13px; color: var(--tinta); }
+  .modos button[aria-pressed="true"] { background: var(--tinta); color: var(--papel); }
+  .tit-comodos { margin: 0 0 4px; font-size: 12px; font-weight: 400; color: var(--suave); }
+  .comodos { list-style: none; margin: 0 0 18px; padding: 0; border-top: 1px solid var(--linha); }
+  .comodos button { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; width: 100%; padding: 8px 6px; text-align: left; font-size: 13px; border-bottom: 1px solid var(--linha); }
+  .comodos small { margin-left: 8px; font-size: 12px; color: var(--suave); }
+  .comodos b { font-weight: 600; white-space: nowrap; }
+  .comodos button:hover, .comodos button.ativo { background: var(--destaque); color: #fff; }
+  .comodos button:hover small, .comodos button.ativo small { color: inherit; }
+  .pe-planta { margin: 0; text-align: center; font-size: 13px; color: var(--suave); }
+
+  .ficha {
+    width: 0; overflow: hidden; background: var(--papel); border-left: 1px solid var(--linha);
+    transition: width .3s ease;
+  }
+  .ficha.aberta { width: 430px; overflow-y: auto; }
+  .ficha-corpo { width: 430px; padding: 18px 36px 24px; }
+  .ficha .sub { margin: 18px 0 2px; font-size: 13px; color: var(--suave); }
+  .ficha h3 { margin: 0; font-size: 27px; font-weight: 600; letter-spacing: -.02em; line-height: 1.15; }
+  .ficha .desc { margin: 2px 0 20px; color: var(--suave); font-size: 15px; }
+  .preco { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 16px 0 12px; border-top: 1px solid var(--tinta); border-bottom: 1px solid var(--linha); }
+  .preco strong { font-size: 36px; font-weight: 600; letter-spacing: -.025em; line-height: 1.1; }
+  .preco s { color: var(--vendido); text-decoration-thickness: 2px; }
+  .estado { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; white-space: nowrap; }
+  .estado::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--vendido); }
+  .estado.disponivel::before { background: var(--destaque); }
+  .fatos { display: grid; grid-template-columns: 1fr 1fr; margin: 0; }
+  .fatos div { padding: 10px 0; border-bottom: 1px solid var(--linha); }
+  .fatos dt { font-size: 12px; color: var(--suave); }
+  .fatos dd { margin: 0; font-size: 18px; font-weight: 600; }
+  .linhas { margin: 0 0 18px; }
+  .linhas div { display: flex; justify-content: space-between; gap: 16px; padding: 9px 0; border-bottom: 1px solid var(--linha); font-size: 13px; }
+  .linhas dt { color: var(--suave); }
+  .linhas dd { margin: 0; text-align: right; }
+  .botao { display: block; width: 100%; padding: 15px; text-align: center; font-weight: 600; font-size: 15px; border-radius: 1px; border: 1px solid var(--linha); background: transparent; }
+  .botao:hover { border-color: var(--tinta); }
+  .botao.forte { background: var(--destaque); border-color: var(--destaque); color: #fff; margin-bottom: 10px; }
+  .botao.forte:hover { filter: brightness(1.14); }
+  .nota { margin: 14px 0 0; font-size: 12px; color: var(--suave); }
+
+  .dica-apto { position: fixed; z-index: 8; pointer-events: none; padding: 9px 14px; background: var(--tinta); color: #f4f3ee; font-size: 13px; border-radius: 1px; white-space: nowrap; }
+  .dica-apto b { display: block; font-weight: 600; font-size: 14px; }
+  .dica-apto[hidden] { display: none; }
+
+  dialog { border: 0; padding: 0; background: var(--papel); color: var(--tinta); width: min(440px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); box-shadow: var(--sombra-modal); }
+  dialog::backdrop { background: rgb(27 30 28 / .42); }
+  .modal { padding: 26px 30px 28px; }
+  .modal header { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+  .modal h2 { margin: 0; font-size: 20px; font-weight: 600; }
+  .fechar { width: 30px; height: 30px; font-size: 20px; line-height: 1; }
+  .modal .sub { margin: 4px 0 14px; font-size: 13px; color: var(--suave); }
+  .campo { display: block; margin-bottom: 11px; font-size: 13px; font-weight: 500; }
+  .campo small { color: var(--suave); font-weight: 400; font-size: 13px; }
+  .campo input, .campo textarea { display: block; width: 100%; margin-top: 4px; padding: 10px 12px; background: #fff; border: 1px solid var(--linha); border-radius: 1px; font-weight: 400; }
+  .campo textarea { min-height: 76px; resize: vertical; }
+  .marcar { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; font-size: 13px; }
+  .modal-texto p { margin: 0 0 12px; font-size: 14px; color: var(--suave); }
+  .grade-sobre { display: grid; grid-template-columns: 1fr 1fr; gap: 0 22px; margin: 16px 0 0; }
+  .grade-sobre div { padding: 10px 0; border-top: 1px solid var(--linha); }
+  .grade-sobre dt { font-size: 12px; color: var(--suave); }
+  .grade-sobre dd { margin: 0; font-size: 14px; font-weight: 500; }
+
+  .aviso { position: fixed; left: 50%; top: 92px; translate: -50% 0; z-index: 9; max-width: min(520px, calc(100vw - 32px)); padding: 12px 16px; background: var(--tinta); color: #f4f3ee; font-size: 14px; }
+  .aviso[hidden] { display: none; }
+
+  @media (max-width: 900px) {
+    .topo { padding: 14px 16px; }
+    .nav { gap: 14px; font-size: 13px; }
+    .caixa { padding: 8px 12px; }
+    .veu { background: linear-gradient(0deg, var(--fundo) 28%, transparent 52%), linear-gradient(180deg, var(--fundo) 0, transparent 14%); }
+    .chamada { left: 16px; right: 16px; bottom: 100px; width: auto; }
+    .chamada h1 { font-size: 30px; margin-bottom: 8px; }
+    .chamada p { display: none; }
+    .numeros { grid-template-columns: repeat(4, auto); gap: 0 16px; }
+    .numeros div { display: contents; }
+    .numeros dt { grid-row: 1; }
+    .numeros dd { grid-row: 2; font-size: 15px; }
+    .andares { left: 0; right: 0; top: auto; bottom: 12px; width: auto; translate: none; padding: 0 16px; }
+    .andares h2 { display: none; }
+    .andares ol { display: flex; gap: 6px; overflow-x: auto; border: 0; padding-bottom: 4px; }
+    .andares li { border: 0; flex: none; }
+    .andar { display: flex; flex-direction: column; gap: 2px; width: 64px; padding: 6px 4px; background: var(--papel); border: 1px solid var(--linha); text-align: center; font-size: 11px; }
+    .andar .quadros { display: none; }
+    .dica-base, .rotulo { display: none; }
+    .sol { bottom: auto; top: 58px; padding: 8px 10px 6px; }
+    .sol-linha { gap: 8px; }
+    .sol select { max-width: 38%; }
+    .sol p { font-size: 11px; }
+    .planta-vista { grid-template-columns: minmax(0, 1fr); padding-top: 66px; }
+    .planta-area { padding: 0 16px 10px; }
+    .barra { gap: 10px 14px; }
+    .barra h2 { font-size: 20px; padding-left: 14px; }
+    .barra p { order: 3; flex-basis: 100%; margin: 0; }
+    .legenda { display: none; }
+    .quadro-planta { place-items: start; }
+    .quadro-planta svg { height: auto; }
+    .pe-planta { display: none; }
+    .ficha { position: fixed; inset: auto 0 0; z-index: 6; width: 100%; height: 0; border: 0; transition: height .3s ease; }
+    .ficha.aberta { width: 100%; height: 56dvh; box-shadow: var(--sombra-modal); }
+    .planta-vista:has(.ficha.aberta) .planta-area { padding-bottom: calc(56dvh + 6px); }
+    body[data-modo="3d"] .ficha.aberta { height: 36dvh; }
+    body[data-modo="3d"] .planta-vista:has(.ficha.aberta) .planta-area { padding-bottom: calc(36dvh + 6px); }
+    body[data-modo="3d"] #andar-resumo { display: none; }
+    .etq { font-size: 10px; padding: 1px 4px; }
+    .etq:not(.ativa) { display: none; }
+    .ficha-corpo { width: 100%; padding: 14px 16px 20px; }
+  }
+  @media (max-width: 560px) {
+    .marca { min-width: 0; }
+    .marca b { font-size: 12px; letter-spacing: .1em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .marca span, #ir-residencias, .nav .longo { display: none; }
+    .nav .curto { display: inline; }
+    .nav { flex: none; white-space: nowrap; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.1/examples/jsm/"
+} }
+</script>
+</head>
+<body data-vista="predio">
+<canvas id="cena" aria-label="Maquete 3D do prédio. Use a lista de andares para navegar sem o mouse."></canvas>
+<div class="veu" id="veu"></div>
+
+<header class="topo">
+  <button class="marca" id="marca" type="button"><b></b><span></span></button>
+  <nav class="nav" aria-label="Principal">
+    <button class="texto" id="ir-residencias" type="button">Residências</button>
+    <button class="texto" id="ir-sobre" type="button" aria-label="O empreendimento"><span class="longo">O empreendimento</span><span class="curto">Sobre</span></button>
+    <button class="caixa" id="ir-contato" type="button">Contato</button>
+  </nav>
+</header>
+
+<section class="vista" id="vista-predio" aria-label="Prédio">
+  <div class="chamada">
+    <h1 id="titulo"></h1>
+    <p id="resumo"></p>
+    <dl class="numeros" id="numeros"></dl>
+  </div>
+  <div class="andares">
+    <h2>Andares</h2>
+    <ol id="lista-andares"></ol>
+    <p class="dica-base">Selecione um andar para ver os apartamentos</p>
+  </div>
+  <div class="sol" id="sol" role="group" aria-label="Sol e sombra" hidden>
+    <div class="sol-linha">
+      <button class="sol-tocar" id="sol-tocar" type="button" aria-label="Passar o dia">▶</button>
+      <label class="sol-hora"><span id="sol-hora-txt"></span><input type="range" id="sol-hora" min="0" max="1435" step="5" aria-label="Hora do dia"></label>
+      <select id="sol-data" aria-label="Dia do ano"></select>
+    </div>
+    <p id="sol-info" aria-live="polite"></p>
+  </div>
+</section>
+<div class="rotulo" id="rotulo" hidden></div>
+
+<section class="vista planta-vista" id="vista-planta" aria-label="Planta do andar" hidden>
+  <div class="planta-area">
+    <div class="barra">
+      <button class="voltar" id="voltar" type="button"><span aria-hidden="true">←</span> Voltar ao prédio</button>
+      <h2 id="andar-titulo"></h2>
+      <p id="andar-resumo" style="margin:0"></p>
+      <div class="setas">
+        <button id="descer" type="button" aria-label="Andar abaixo">↓</button>
+        <button id="subir" type="button" aria-label="Andar acima">↑</button>
+      </div>
+      <div class="legenda" id="legenda" aria-hidden="true">
+        <span><i class="q"></i>Disponível</span>
+        <span><i class="q reservado"></i>Reservado</span>
+        <span><i class="q vendido"></i>Vendido</span>
+      </div>
+      <div class="modos" id="modos" role="group" aria-label="Forma de ver o apartamento" hidden>
+        <button id="modo-planta" type="button" aria-pressed="true">Planta</button>
+        <button id="modo-3d" type="button" aria-pressed="false">3D</button>
+      </div>
+    </div>
+    <div class="quadro-planta" id="quadro-planta"></div>
+    <div class="quadro-3d" id="quadro-3d" hidden>
+      <canvas id="cena-apto" aria-label="Apartamento em 3D, sem teto. Use a lista de cômodos para navegar sem o mouse."></canvas>
+      <div class="etiquetas" id="etiquetas" aria-hidden="true"></div>
+    </div>
+    <p class="pe-planta" id="pe-planta"></p>
+  </div>
+  <aside class="ficha" id="ficha" aria-label="Detalhes do apartamento"></aside>
+</section>
+
+<div class="dica-apto" id="dica-apto" hidden></div>
+<div class="aviso" id="aviso" role="alert" hidden></div>
+
+<dialog id="modal-contato"><div class="modal" id="contato-corpo"></div></dialog>
+<dialog id="modal-sobre"><div class="modal modal-texto" id="sobre-corpo"></div></dialog>
+
+<!-- ============================================================
+     DADOS DO PROJETO
+     Para outro prédio, troque só o bloco JSON abaixo. O motor no
+     script seguinte lê tudo daqui. Medidas em metros.
+     ============================================================ -->
+<script id="projeto" type="application/json">
+{
+ "empreendimento": {
+  "localizacao": {"lat": 51.5383, "lon": -0.1027, "fuso": "Europe/London", "horaInicial": 14},
+  "nome": "Verdant Residences",
+  "local": "Londres, coleção residencial",
+  "idioma": "pt-BR",
+  "moeda": "USD",
+  "titulo": "Um edifício-jardim em Islington.",
+  "resumo": "Doze andares em pedra e vidro, recuados atrás de uma praça arborizada. Toda residência tem varanda ou terraço.",
+  "notaFicha": "Conceito ilustrativo. Preços, áreas e disponibilidade são dados de exemplo.",
+  "sobre": {
+   "titulo": "O empreendimento",
+   "paragrafos": [
+    "O Verdant Residences ocupa uma antiga gráfica entre duas fileiras de casas vitorianas. O prédio recua da rua e abre uma praça para o quarteirão, com gramados, um espelho d'água e plátanos nas bordas.",
+    "Cada andar reúne cinco residências em torno de um núcleo central. Os apartamentos de esquina têm terraços recuados, e os voltados para o sul têm varandas sobre o jardim."
+   ],
+   "fatos": [
+    ["Residências", "60 em 12 andares"],
+    ["Por andar", "5, de um a três quartos"],
+    ["Área externa", "Varanda ou terraço em todas"],
+    ["Áreas comuns", "Praça, terraço na cobertura, bicicletário"]
+   ],
+   "nota": "Conceito de design. Incorporadora, endereço e números são fictícios."
+  }
+ },
+ "contato": {"whatsapp": null},
+ "ambiente": {
+  "fundo": "#e4e4dc",
+  "destaque": "#2a3ab8",
+  "corVizinhos": "#dcdcd2",
+  "corBaixa": "#cfcfc3",
+  "neblina": [185, 390],
+  "sol": [-130, 250, 200],
+  "luzCeu": 2.25,
+  "luzSol": 1.25,
+  "sombraChao": 0.13
+ },
+ "camera": {"fov": 21, "posicao": [80, 88, 164], "alvo": [3, 20, 2], "desvioTela": 0.045},
+ "predio": {
+  "posicao": [0, 0],
+  "rotacao": 0,
+  "terreo": {"altura": 4},
+  "alturaAndar": 3.2,
+  "laje": [[0, 0], [34.4, 0], [34.4, 15.13], [0, 15.13]],
+  "envidracado": [
+   [0, 0],
+   [19.3, 0],
+   [19.3, 1.58],
+   [23.2, 1.58],
+   [23.2, 0],
+   [34.4, 0],
+   [34.4, 11.75],
+   [31.11, 11.75],
+   [31.11, 15.13],
+   [3.18, 15.13],
+   [3.18, 11.75],
+   [0, 11.75]
+  ],
+  "guardaCorpos": [
+   [[19.3, 0], [23.2, 0]],
+   [[34.4, 11.75], [34.4, 15.13], [31.11, 15.13]],
+   [[3.18, 15.13], [0, 15.13], [0, 11.75]]
+  ],
+  "balancos": [
+   {"x": 13.66, "y": 15.13, "largura": 4.56, "profundidade": 1.64, "lado": "sul"},
+   {"x": 19.24, "y": 15.13, "largura": 4.23, "profundidade": 1.64, "lado": "sul"}
+  ],
+  "marquises": [{"x": 13, "y": 15.13, "largura": 9.5, "profundidade": 3.4, "altura": 3.5, "espessura": 0.34}],
+  "fachada": {"vao": 3.82, "recuoVidro": 0.28, "pilar": 0.46, "beiral": 0.1, "espessuraLaje": 0.34},
+  "cores": {
+   "estrutura": "#efeadc",
+   "cobertura": "#f4f0e4",
+   "vidro": "#8a9a9d",
+   "vidroTerreo": "#6b7778",
+   "caixilho": "#3c4340",
+   "vidroGuarda": "#c6d3d2",
+   "casaDeMaquinas": "#8d918b",
+   "canteiro": "#8fa87f"
+  },
+  "cobertura": {
+   "casaDeMaquinas": {"x": 13.2, "y": 3.9, "largura": 9, "profundidade": 6.2, "altura": 2.3},
+   "canteiros": [
+    {"x": 3.5, "y": 12, "largura": 4.5, "profundidade": 1},
+    {"x": 15, "y": 12, "largura": 5, "profundidade": 1},
+    {"x": 26.5, "y": 12, "largura": 4.8, "profundidade": 1},
+    {"x": 25, "y": 1.5, "largura": 4.5, "profundidade": 1}
+   ]
+  }
+ },
+ "terreno": {
+  "alcanceSombra": 150,
+  "areas": [
+   {
+    "nome": "Calçamento do lote",
+    "cor": "#eeede4",
+    "pontos": [[-92, -58], [92, -58], [92, 66], [-92, 66]],
+    "altura": 0.05
+   },
+   {
+    "nome": "Gramado oeste",
+    "cor": "#bdcbad",
+    "pontos": [[-82, -46], [-25, -46], [-25, 14], [-34, 42], [-82, 42]],
+    "altura": 0.12
+   },
+   {
+    "nome": "Gramado leste",
+    "cor": "#bdcbad",
+    "pontos": [[25, -46], [84, -46], [84, 8], [25, 8]],
+    "altura": 0.12
+   },
+   {
+    "nome": "Gramado sudoeste",
+    "cor": "#c2cfb2",
+    "pontos": [[-28, 16], [-5, 16], [-5, 58], [-40, 58]],
+    "altura": 0.12
+   },
+   {
+    "nome": "Gramado sudeste",
+    "cor": "#bdcbad",
+    "pontos": [[27, 16], [84, 16], [84, 58], [27, 58]],
+    "altura": 0.12
+   },
+   {
+    "nome": "Borda do espelho",
+    "cor": "#f1f0e8",
+    "pontos": [[6, 22], [21, 22], [21, 60], [6, 60]],
+    "altura": 0.14
+   },
+   {
+    "nome": "Espelho d'água",
+    "cor": "#bccdd0",
+    "pontos": [[8, 24], [19, 24], [19, 58], [8, 58]],
+    "altura": 0.17
+   },
+   {
+    "nome": "Calçada da entrada",
+    "cor": "#f4f3eb",
+    "pontos": [[-3, 8.5], [5, 8.5], [5, 60], [-3, 60]],
+    "altura": 0.1
+   }
+  ],
+  "ruas": [
+   {
+    "pontos": [[-260, 76], [260, 76]],
+    "largura": 10,
+    "calcada": 3,
+    "cor": "#d6d6cc",
+    "corCalcada": "#e9e8df",
+    "faixa": true,
+    "corFaixa": "#efeee6"
+   },
+   {
+    "pontos": [[106, -260], [106, 76]],
+    "largura": 9,
+    "calcada": 3,
+    "cor": "#d6d6cc",
+    "corCalcada": "#e9e8df"
+   }
+  ],
+  "vizinhos": [
+   {"x": -104, "z": -118, "largura": 40, "profundidade": 24, "andares": 8, "esmaecer": 0.72},
+   {"x": -26, "z": -128, "largura": 38, "profundidade": 22, "andares": 9, "esmaecer": 0.82},
+   {"x": 62, "z": -122, "largura": 34, "profundidade": 22, "andares": 7, "esmaecer": 0.82},
+   {
+    "x": 136,
+    "z": -58,
+    "largura": 62,
+    "profundidade": 13,
+    "andares": 4,
+    "telhado": "duasAguas",
+    "esmaecer": 0.62,
+    "passoJanela": 5,
+    "rotacao": 90
+   },
+   {
+    "x": 136,
+    "z": 14,
+    "largura": 52,
+    "profundidade": 13,
+    "andares": 4,
+    "telhado": "duasAguas",
+    "esmaecer": 0.62,
+    "passoJanela": 5,
+    "rotacao": 90
+   },
+   {"x": -150, "z": -34, "largura": 26, "profundidade": 22, "andares": 6, "esmaecer": 0.78},
+   {
+    "x": -50,
+    "z": 124,
+    "largura": 70,
+    "profundidade": 16,
+    "andares": 4,
+    "telhado": "duasAguas",
+    "esmaecer": 0.5,
+    "passoJanela": 5
+   }
+  ],
+  "especies": {
+   "platano": {"forma": "redonda", "altura": 13, "raio": 4.6, "cor": "#97ab8a", "corTronco": "#7d8678"},
+   "redonda": {"forma": "redonda", "altura": 10.5, "raio": 3.8, "cor": "#8fa684", "corTronco": "#7d8678"},
+   "cipreste": {"forma": "cipreste", "altura": 17, "raio": 3, "cor": "#93a888", "corTronco": "#7d8678"},
+   "arbusto": {"forma": "arbusto", "altura": 2.4, "raio": 2.3, "cor": "#9db091"}
+  },
+  "fileiras": [
+   {"especie": "platano", "de": [-76, -40], "ate": [-76, 34], "quantidade": 6, "escala": 1.05},
+   {"especie": "platano", "de": [-66, 38], "ate": [-28, 54], "quantidade": 3},
+   {"especie": "cipreste", "de": [-30, 46], "ate": [-10, 54], "quantidade": 3, "escala": 1.05},
+   {"especie": "cipreste", "de": [32, 20], "ate": [32, 54], "quantidade": 5, "escala": 0.9},
+   {"especie": "redonda", "de": [78, -40], "ate": [78, 4], "quantidade": 4},
+   {"especie": "redonda", "de": [46, 52], "ate": [80, 52], "quantidade": 3}
+  ],
+  "plantio": [
+   {"especie": "redonda", "x": -46, "z": 8, "escala": 1.15},
+   {"especie": "redonda", "x": -38, "z": -18},
+   {"especie": "platano", "x": -56, "z": -30},
+   {"especie": "cipreste", "x": -40, "z": 30, "escala": 1.1},
+   {"especie": "cipreste", "x": -20, "z": 34},
+   {"especie": "redonda", "x": 52, "z": -24, "escala": 1.1},
+   {"especie": "platano", "x": 58, "z": 0},
+   {"especie": "arbusto", "x": -24, "z": 21},
+   {"especie": "arbusto", "x": -14, "z": 22},
+   {"especie": "arbusto", "x": 26, "z": 13},
+   {"especie": "arbusto", "x": 36, "z": 12}
+  ]
+ },
+ "plantas": {
+  "padrao": {
+   "largura": 34.4,
+   "profundidade": 16.83,
+   "norte": 0,
+   "janelas": [[0, 0], [34.39, 0], [34.39, 15.13], [0, 15.13]],
+   "exteriores": [
+    {"pontos": [[0, 11.75], [3.18, 11.75], [3.18, 15.13], [0, 15.13]]},
+    {"pontos": [[31.11, 11.75], [34.39, 11.75], [34.39, 15.13], [31.11, 15.13]]},
+    {"pontos": [[19.4, 0], [23.1, 0], [23.1, 1.48], [19.4, 1.48]]},
+    {"pontos": [[13.66, 15.13], [18.21, 15.13], [18.21, 16.78], [13.66, 16.78]]},
+    {"pontos": [[19.24, 15.13], [23.47, 15.13], [23.47, 16.78], [19.24, 16.78]]}
+   ],
+   "unidades": [
+    {
+     "tipo": "01",
+     "contorno": [[0, 0], [9.14, 0], [9.14, 15.13], [3.18, 15.13], [3.18, 11.75], [0, 11.75]],
+     "rotulo": [6.47, 12.3],
+     "comodos": [
+      {
+       "nome": "Sala, cozinha, jantar",
+       "pontos": [
+        [3.63, 6.86],
+        [6.67, 6.86],
+        [6.67, 8.46],
+        [9.03, 8.46],
+        [9.03, 15.13],
+        [3.18, 15.13],
+        [3.18, 11.75],
+        [3.63, 11.75]
+       ],
+       "rotulo": [6.26, 11.33]
+      },
+      {
+       "nome": "Suíte",
+       "pontos": [[4.41, 0.14], [9.03, 0.14], [9.03, 4.21], [4.41, 4.21]],
+       "rotulo": [6.71, 2.18]
+      },
+      {
+       "nome": "Quarto 2",
+       "pontos": [[0.16, 0.14], [4.41, 0.14], [4.41, 4.21], [0.16, 4.21]],
+       "rotulo": [2.28, 2.18]
+      },
+      {
+       "nome": "Quarto 3",
+       "pontos": [[0.16, 6.86], [3.63, 6.86], [3.63, 11.75], [0.16, 11.75]],
+       "rotulo": [1.54, 10.31]
+      },
+      {
+       "nome": "Hall",
+       "pontos": [
+        [2.61, 4.21],
+        [6.67, 4.21],
+        [6.67, 6.41],
+        [9.03, 6.41],
+        [9.03, 8.46],
+        [6.67, 8.46],
+        [6.67, 6.86],
+        [2.61, 6.86]
+       ],
+       "rotulo": [4.64, 5.54]
+      },
+      {
+       "nome": "Banho suíte",
+       "pontos": [[6.67, 4.25], [9.03, 4.25], [9.03, 6.41], [6.67, 6.41]],
+       "rotulo": [7.86, 5.34],
+       "molhado": true
+      },
+      {
+       "nome": "Banho",
+       "pontos": [[0.16, 4.25], [2.61, 4.25], [2.61, 6.82], [0.16, 6.82]],
+       "rotulo": [1.38, 5.54],
+       "molhado": true
+      },
+      {
+       "nome": "Terraço",
+       "pontos": [[0, 11.75], [3.18, 11.75], [3.18, 15.13], [0, 15.13]],
+       "rotulo": [1.58, 13.43],
+       "externo": true
+      }
+     ]
+    },
+    {
+     "tipo": "02",
+     "contorno": [[9.14, 8.05], [18.79, 8.05], [18.79, 15.13], [9.14, 15.13]],
+     "rotulo": [16.08, 11.99],
+     "comodos": [
+      {
+       "nome": "Sala, cozinha",
+       "pontos": [[15.75, 8.15], [18.79, 8.15], [18.79, 15.13], [12.73, 15.13], [12.73, 10.06], [15.75, 10.06]],
+       "rotulo": [15.71, 12.57]
+      },
+      {
+       "nome": "Quarto",
+       "pontos": [[9.24, 11.09], [12.73, 11.09], [12.73, 15.13], [9.24, 15.13]],
+       "rotulo": [10.99, 13.1]
+      },
+      {
+       "nome": "Hall",
+       "pontos": [[11.7, 8.15], [14.17, 8.15], [14.17, 10.06], [12.73, 10.06], [12.73, 11.09], [11.7, 11.09]],
+       "rotulo": [12.94, 9.12]
+      },
+      {
+       "nome": "Banho",
+       "pontos": [[9.24, 8.15], [11.7, 8.15], [11.7, 11.09], [9.24, 11.09]],
+       "rotulo": [10.47, 9.61],
+       "molhado": true
+      },
+      {
+       "nome": "Armário",
+       "pontos": [[14.17, 8.19], [15.75, 8.19], [15.75, 10.06], [14.17, 10.06]],
+       "rotulo": [14.95, 9.12]
+      },
+      {
+       "nome": "Varanda",
+       "pontos": [[13.66, 15.13], [18.21, 15.13], [18.21, 16.78], [13.66, 16.78]],
+       "rotulo": [15.93, 15.95],
+       "externo": true
+      }
+     ]
+    },
+    {
+     "tipo": "03",
+     "contorno": [[18.79, 8.05], [27.31, 8.05], [27.31, 15.13], [18.79, 15.13]],
+     "rotulo": [21.25, 12.4],
+     "comodos": [
+      {
+       "nome": "Sala, cozinha",
+       "pontos": [[18.89, 10.68], [21.87, 10.68], [21.87, 9.86], [23.82, 9.86], [23.82, 15.13], [18.89, 15.13]],
+       "rotulo": [21.36, 12.77]
+      },
+      {
+       "nome": "Quarto",
+       "pontos": [[23.96, 10.92], [27.31, 10.92], [27.31, 15.13], [23.96, 15.13]],
+       "rotulo": [25.63, 13.02]
+      },
+      {
+       "nome": "Escritório",
+       "pontos": [[18.89, 8.15], [21.87, 8.15], [21.87, 10.68], [18.89, 10.68]],
+       "rotulo": [20.37, 9.4]
+      },
+      {
+       "nome": "Hall",
+       "pontos": [[21.87, 8.15], [24.7, 8.15], [24.7, 10.92], [23.96, 10.92], [23.96, 9.86], [21.87, 9.86]],
+       "rotulo": [23.26, 8.99]
+      },
+      {
+       "nome": "Banho",
+       "pontos": [[24.7, 8.15], [27.31, 8.15], [27.31, 10.82], [24.7, 10.82]],
+       "rotulo": [26, 9.49],
+       "molhado": true
+      },
+      {
+       "nome": "Varanda",
+       "pontos": [[19.24, 15.13], [23.47, 15.13], [23.47, 16.78], [19.24, 16.78]],
+       "rotulo": [21.36, 15.95],
+       "externo": true
+      }
+     ]
+    },
+    {
+     "tipo": "04",
+     "contorno": [[14.27, 0], [19.3, 0], [19.3, 1.58], [23.2, 1.58], [23.2, 0], [27.31, 0], [27.31, 6.45], [14.27, 6.45]],
+     "rotulo": [20.84, 3.9],
+     "comodos": [
+      {
+       "nome": "Sala, cozinha",
+       "pontos": [[17.8, 0.14], [19.3, 0.14], [19.3, 1.58], [23.26, 1.58], [23.26, 6.41], [17.8, 6.41]],
+       "rotulo": [20.64, 4.05]
+      },
+      {
+       "nome": "Suíte",
+       "pontos": [[23.26, 0.14], [27.21, 0.14], [27.21, 4.05], [25.52, 4.05], [25.52, 6.41], [23.26, 6.41]],
+       "rotulo": [25.2, 2.09]
+      },
+      {
+       "nome": "Quarto 2",
+       "pontos": [[14.37, 0.14], [17.8, 0.14], [17.8, 3.57], [14.37, 3.57]],
+       "rotulo": [16.08, 1.85]
+      },
+      {
+       "nome": "Hall",
+       "pontos": [[15.95, 3.57], [17.8, 3.57], [17.8, 6.41], [15.95, 6.41]],
+       "rotulo": [16.88, 5.01]
+      },
+      {
+       "nome": "Banho",
+       "pontos": [[14.37, 3.63], [15.95, 3.63], [15.95, 6.41], [14.37, 6.41]],
+       "rotulo": [15.15, 5.01],
+       "molhado": true
+      },
+      {
+       "nome": "Banho suíte",
+       "pontos": [[25.52, 4.05], [27.21, 4.05], [27.21, 6.41], [25.52, 6.41]],
+       "rotulo": [26.37, 5.22],
+       "molhado": true
+      },
+      {
+       "nome": "Terraço",
+       "pontos": [[19.3, 0], [23.2, 0], [23.2, 1.58], [19.3, 1.58]],
+       "rotulo": [21.25, 0.78],
+       "externo": true
+      }
+     ]
+    },
+    {
+     "tipo": "05",
+     "contorno": [[27.31, 0], [34.39, 0], [34.39, 11.75], [31.11, 11.75], [31.11, 15.13], [27.31, 15.13]],
+     "rotulo": [29.24, 11.09],
+     "comodos": [
+      {
+       "nome": "Sala, cozinha, jantar",
+       "pontos": [[27.41, 8.67], [34.29, 8.67], [34.29, 11.75], [31.11, 11.75], [31.11, 15.13], [27.41, 15.13]],
+       "rotulo": [29.67, 11.33]
+      },
+      {
+       "nome": "Suíte",
+       "pontos": [[29.94, 0.14], [34.29, 0.14], [34.29, 4.46], [30.74, 4.46], [30.74, 5.22], [29.94, 5.22]],
+       "rotulo": [32.14, 2.3]
+      },
+      {
+       "nome": "Quarto 2",
+       "pontos": [[30.74, 4.46], [34.29, 4.46], [34.29, 8.67], [30.74, 8.67]],
+       "rotulo": [32.55, 6.57]
+      },
+      {
+       "nome": "Hall",
+       "pontos": [[27.41, 5.22], [30.74, 5.22], [30.74, 8.67], [27.41, 8.67]],
+       "rotulo": [29.06, 6.94]
+      },
+      {
+       "nome": "Banho suíte",
+       "pontos": [[27.41, 0.14], [29.94, 0.14], [29.94, 2.57], [27.41, 2.57]],
+       "rotulo": [28.67, 1.36],
+       "molhado": true
+      },
+      {
+       "nome": "Banho",
+       "pontos": [[27.41, 2.61], [29.94, 2.61], [29.94, 5.22], [27.41, 5.22]],
+       "rotulo": [28.67, 3.9],
+       "molhado": true
+      },
+      {
+       "nome": "Terraço",
+       "pontos": [[31.11, 11.75], [34.39, 11.75], [34.39, 15.13], [31.11, 15.13]],
+       "rotulo": [32.75, 13.43],
+       "externo": true
+      }
+     ]
+    }
+   ],
+   "areasComuns": [
+    {"pontos": [[9.14, 6.45], [27.31, 6.45], [27.31, 8.01], [9.14, 8.01]]},
+    {"pontos": [[11.77, 2.4], [14.17, 2.4], [14.17, 6.45], [11.77, 6.45]]},
+    {"pontos": [[9.14, 0], [14.27, 0], [14.27, 2.4], [9.14, 2.4]]}
+   ],
+   "molhados": [
+    [0.16, 4.25, 2.44, 2.57],
+    [6.67, 4.25, 2.36, 2.16],
+    [9.24, 8.15, 2.46, 2.94],
+    [14.17, 8.19, 1.58, 1.87],
+    [24.7, 8.15, 2.61, 2.67],
+    [14.37, 3.63, 1.58, 2.73],
+    [25.52, 4.05, 1.68, 2.32],
+    [27.41, 0.14, 2.53, 2.42],
+    [27.41, 2.61, 2.53, 2.61]
+   ],
+   "escada": {"ret": [9.34, 0.35, 2.16, 5.71], "degraus": 16},
+   "paredes": [
+    [9.14, 0, 14.27, 0, 0.22],
+    [9.14, 0, 9.14, 6.45, 0.16],
+    [11.7, 0.14, 11.7, 6.45, 0.1],
+    [14.17, 0.14, 14.17, 6.45, 0.16],
+    [11.77, 2.4, 14.17, 2.4, 0.1],
+    [9.14, 6.45, 11.85, 6.45, 0.16],
+    [14.02, 6.45, 16.43, 6.45, 0.16],
+    [17.45, 6.45, 27.31, 6.45, 0.16],
+    [9.14, 8.01, 12.73, 8.01, 0.16],
+    [13.76, 8.01, 23.1, 8.01, 0.16],
+    [24.09, 8.01, 27.31, 8.01, 0.16],
+    [27.31, 0, 27.31, 6.76, 0.16],
+    [27.31, 7.68, 27.31, 15.13, 0.16],
+    [9.14, 7.68, 9.14, 15.13, 0.16],
+    [18.79, 8.01, 18.79, 15.13, 0.16],
+    [4.41, 0.14, 4.41, 4.21, 0.1],
+    [0.16, 4.21, 3.08, 4.21, 0.1],
+    [3.84, 4.21, 5.07, 4.21, 0.1],
+    [5.85, 4.21, 9.03, 4.21, 0.1],
+    [2.61, 4.21, 2.61, 5.34, 0.1],
+    [2.61, 6.1, 2.61, 6.82, 0.1],
+    [0.16, 6.82, 2.61, 6.82, 0.1],
+    [6.67, 4.21, 6.67, 6.41, 0.1],
+    [6.67, 6.41, 9.03, 6.41, 0.1],
+    [3.63, 6.86, 3.63, 11.75, 0.1],
+    [3.63, 6.86, 4, 6.86, 0.1],
+    [6.26, 6.86, 6.67, 6.86, 0.1],
+    [6.67, 6.86, 6.67, 8.46, 0.1],
+    [6.67, 8.46, 6.94, 8.46, 0.1],
+    [0.16, 11.75, 3.63, 11.75, 0.1],
+    [2.73, 6.92, 3.63, 6.92, 0.1],
+    [11.7, 8.15, 11.7, 11.09, 0.1],
+    [9.24, 11.09, 11.85, 11.09, 0.1],
+    [12.63, 11.09, 12.73, 11.09, 0.1],
+    [12.73, 10.06, 12.73, 15.13, 0.1],
+    [12.73, 10.06, 12.94, 10.06, 0.1],
+    [14.17, 10.06, 15.75, 10.06, 0.1],
+    [15.75, 8.15, 15.75, 10.06, 0.1],
+    [14.17, 8.15, 14.17, 8.62, 0.1],
+    [14.17, 9.34, 14.17, 10.06, 0.1],
+    [21.87, 8.15, 21.87, 10.68, 0.1],
+    [20.43, 10.68, 21.87, 10.68, 0.1],
+    [18.89, 10.68, 19.65, 10.68, 0.1],
+    [21.87, 9.86, 22.28, 9.86, 0.1],
+    [23.82, 9.86, 23.96, 9.86, 0.1],
+    [23.96, 9.86, 23.96, 10.92, 0.1],
+    [23.96, 11.64, 23.96, 15.13, 0.1],
+    [24.7, 8.15, 24.7, 8.6, 0.1],
+    [24.7, 9.38, 24.7, 10.82, 0.1],
+    [24.7, 10.82, 27.21, 10.82, 0.1],
+    [23.96, 10.92, 24.68, 10.92, 0.1],
+    [14.37, 3.57, 16.69, 3.57, 0.1],
+    [17.52, 3.57, 17.8, 3.57, 0.1],
+    [17.8, 0.14, 17.8, 3.94, 0.1],
+    [17.8, 5.59, 17.8, 6.41, 0.1],
+    [15.95, 3.63, 15.95, 4.72, 0.1],
+    [15.95, 5.48, 15.95, 6.41, 0.1],
+    [23.26, 1.58, 23.26, 2.4, 0.1],
+    [23.26, 3.22, 23.26, 6.41, 0.1],
+    [25.52, 4.05, 25.52, 6.41, 0.1],
+    [25.52, 4.05, 25.98, 4.05, 0.1],
+    [26.69, 4.05, 27.21, 4.05, 0.1],
+    [19.3, 0, 19.3, 1.58, 0.28],
+    [23.2, 0, 23.2, 1.58, 0.28],
+    [19.3, 1.58, 23.26, 1.58, 0.08],
+    [29.94, 0.14, 29.94, 0.9, 0.1],
+    [29.94, 1.64, 29.94, 5.22, 0.1],
+    [27.41, 2.57, 29.94, 2.57, 0.1],
+    [27.41, 5.22, 27.91, 5.22, 0.1],
+    [28.64, 5.22, 29.94, 5.22, 0.1],
+    [30.74, 4.46, 34.29, 4.46, 0.1],
+    [30.74, 4.41, 30.74, 6.32, 0.1],
+    [30.74, 7.13, 30.74, 8.67, 0.1],
+    [30.39, 8.67, 34.29, 8.67, 0.1],
+    [27.41, 8.67, 27.95, 8.67, 0.1],
+    [31.11, 11.75, 34.23, 11.75, 0.1]
+   ],
+   "pilares": [
+    [3.63, -0.16, 0.82, 0.33],
+    [8.52, -0.16, 0.62, 0.33],
+    [17.25, -0.16, 0.72, 0.33],
+    [26.8, -0.16, 0.62, 0.33],
+    [29.36, -0.16, 1.33, 0.33],
+    [33.78, -0.16, 0.78, 0.33],
+    [-0.14, -0.16, 0.31, 1.13],
+    [-0.14, 3.43, 0.31, 1.38],
+    [-0.14, 6.1, 0.31, 1.54],
+    [-0.14, 10.92, 0.31, 0.99],
+    [34.23, -0.16, 0.33, 0.92],
+    [34.23, 3.63, 0.33, 1.33],
+    [34.23, 8.05, 0.33, 0.99],
+    [34.23, 11.33, 0.33, 0.57],
+    [3.08, 11.54, 0.35, 0.37],
+    [3.08, 14.97, 0.76, 0.33],
+    [8.52, 14.97, 0.62, 0.33],
+    [12.16, 14.97, 1.19, 0.33],
+    [18.28, 14.97, 0.92, 0.33],
+    [23.31, 14.97, 0.82, 0.33],
+    [26.74, 14.97, 0.68, 0.33],
+    [30.9, 11.54, 0.41, 0.37],
+    [30.6, 14.97, 0.72, 0.33]
+   ],
+   "portas": [
+    [3.08, 4.21, 0.76, -90, 0],
+    [5.07, 4.21, 0.78, -90, 0],
+    [2.61, 6.1, 0.76, 180, 270],
+    [8.36, 4.25, 0.74, 90, 180],
+    [2.73, 6.92, 0.74, 90, 0],
+    [9.14, 6.76, 0.92, 180, 90],
+    [11.75, 8.6, 0.78, 180, 90],
+    [13.72, 8.11, 0.94, 90, 180],
+    [14.17, 8.62, 0.72, 0, 90],
+    [11.85, 11.13, 0.78, 90, 0],
+    [23.1, 8.05, 0.94, 90, 0],
+    [24.7, 8.6, 0.76, 0, 90],
+    [19.65, 10.68, 0.78, -90, 0],
+    [23.96, 10.92, 0.72, 90, 0],
+    [17.52, 3.57, 0.8, -90, -180],
+    [16.02, 4.72, 0.76, 180, 90],
+    [16.49, 6.41, 0.9, -90, 0],
+    [23.26, 2.4, 0.82, 0, 90],
+    [26.69, 4.09, 0.74, 90, 180],
+    [29.94, 1.64, 0.74, 180, 270],
+    [28.64, 5.22, 0.74, -90, -180],
+    [30.74, 4.41, 0.78, -90, -180],
+    [30.74, 6.32, 0.8, 0, 90],
+    [27.31, 6.76, 0.92, 0, 90],
+    [11.77, 4.41, 0.92, 180, 90]
+   ],
+   "moveis": [
+    {"r": [2.22, 1.38, 2.03, 1.44], "cab": "d", "tipo": "cama"},
+    {"r": [6.88, 1.17, 2.01, 1.85], "cab": "d", "tipo": "cama"},
+    {"r": [0.16, 4.46, 0.72, 1.58], "tipo": "banheira"},
+    {"r": [2.01, 4.31, 0.51, 0.45], "tipo": "pia"},
+    {"r": [6.82, 4.35, 0.82, 0.92], "tipo": "box"},
+    {"r": [8.48, 5.73, 0.51, 0.45], "tipo": "pia"},
+    {"r": [2.42, 7.02, 0.97, 2.05], "cab": "c", "tipo": "cama"},
+    {"r": [4.46, 8.25, 1.91, 0.86], "tipo": "mesa"},
+    {"r": [8.44, 8.67, 0.6, 2.63], "tipo": "bancada"},
+    {"r": [3.53, 13.53, 2.24, 0.8], "tipo": "sofa", "cab": "b"},
+    {"r": [4.05, 12.4, 1.21, 0.57], "tipo": "mesaCentro"},
+    {"r": [9.28, 8.28, 0.74, 1.6], "tipo": "banheira"},
+    {"r": [11.03, 10.49, 0.51, 0.45], "tipo": "pia"},
+    {"r": [9.3, 12.11, 2.03, 1.6], "cab": "e", "tipo": "cama"},
+    {"r": [15.98, 8.25, 2.61, 0.55], "tipo": "bancada"},
+    {"r": [16.39, 9.49, 1.62, 0.82], "tipo": "mesa"},
+    {"r": [13.14, 14.02, 2.24, 0.8], "tipo": "sofa", "cab": "b"},
+    {"c": [17.8, 14.13, 0.51], "tipo": "mesaRedonda"},
+    {"r": [18.89, 8.3, 1.64, 0.66], "tipo": "mesa"},
+    {"r": [26.43, 8.28, 0.74, 1.56], "tipo": "banheira"},
+    {"r": [24.85, 10.29, 0.49, 0.45], "tipo": "pia"},
+    {"r": [18.89, 13.33, 0.57, 1.6], "tipo": "bancada"},
+    {"r": [19.82, 14.07, 2.24, 0.8], "tipo": "sofa", "cab": "b"},
+    {"c": [23.02, 13.94, 0.49], "tipo": "mesaRedonda"},
+    {"r": [25.11, 12.11, 2.01, 1.6], "cab": "d", "tipo": "cama"},
+    {"r": [14.37, 0.99, 2.01, 1.42], "cab": "e", "tipo": "cama"},
+    {"r": [14.37, 3.78, 0.72, 1.56], "tipo": "banheira"},
+    {"r": [18.11, 1.89, 0.82, 1.93], "tipo": "sofa", "cab": "e"},
+    {"r": [18.01, 5.69, 2.63, 0.62], "tipo": "bancada"},
+    {"r": [22.16, 4.64, 0.86, 1.6], "tipo": "mesa"},
+    {"r": [25.09, 0.86, 2.03, 1.83], "cab": "d", "tipo": "cama"},
+    {"r": [26.41, 4.21, 0.76, 1.44], "tipo": "box"},
+    {"r": [25.61, 5.89, 0.49, 0.45], "tipo": "pia"},
+    {"r": [27.54, 0.18, 0.74, 0.88], "tipo": "box"},
+    {"r": [29.22, 1.99, 0.53, 0.45], "tipo": "pia"},
+    {"r": [30.14, 1.27, 2.03, 1.83], "cab": "e", "tipo": "cama"},
+    {"r": [27.47, 2.81, 0.74, 1.58], "tipo": "banheira"},
+    {"r": [31.97, 6.45, 1.4, 2.01], "cab": "b", "tipo": "cama"},
+    {"r": [28.13, 12.67, 1.21, 0.57], "tipo": "mesaCentro"},
+    {"r": [27.72, 13.84, 2.24, 0.84], "tipo": "sofa", "cab": "b"},
+    {"c": [32.59, 10.39, 0.49], "tipo": "mesaRedonda"},
+    {"r": [33.63, 8.97, 0.62, 2.42], "tipo": "bancada"},
+    {"r": [11.85, 0.18, 1.03, 2.01], "tipo": "elevador"},
+    {"r": [13, 0.18, 1.03, 2.01], "tipo": "elevador"}
+   ],
+   "rotulos": [
+    {"x": 2.22, "y": 2.09, "texto": "Quarto 2"},
+    {"x": 6.26, "y": 0.88, "texto": "Suíte"},
+    {"x": 1.29, "y": 5.54, "texto": "Banho"},
+    {"x": 4.64, "y": 5.54, "texto": "Hall"},
+    {"x": 7.89, "y": 5.36, "texto": "Banho suíte"},
+    {"x": 1.4, "y": 10.51, "texto": "Quarto 3"},
+    {"x": 6.47, "y": 11.56, "texto": "Sala, cozinha, jantar"},
+    {"x": 10.41, "y": 9.61, "texto": "Banho"},
+    {"x": 12.94, "y": 9.2, "texto": "Hall"},
+    {"x": 10.92, "y": 14.44, "texto": "Quarto"},
+    {"x": 16.08, "y": 11.25, "texto": "Sala, cozinha"},
+    {"x": 20.29, "y": 9.38, "texto": "Escritório"},
+    {"x": 22.96, "y": 8.99, "texto": "Hall"},
+    {"x": 26, "y": 9.49, "texto": "Banho"},
+    {"x": 21.25, "y": 11.66, "texto": "Sala, cozinha"},
+    {"x": 25.59, "y": 14.44, "texto": "Quarto"},
+    {"x": 15.98, "y": 0.78, "texto": "Quarto 2"},
+    {"x": 15.05, "y": 5.05, "texto": "Banho"},
+    {"x": 16.88, "y": 5.05, "texto": "Hall"},
+    {"x": 20.84, "y": 3.16, "texto": "Sala, cozinha"},
+    {"x": 24.89, "y": 0.78, "texto": "Suíte"},
+    {"x": 26.41, "y": 5.26, "texto": "Banho suíte"},
+    {"x": 28.62, "y": 1.29, "texto": "Banho suíte"},
+    {"x": 32.18, "y": 0.78, "texto": "Suíte"},
+    {"x": 28.62, "y": 3.94, "texto": "Banho"},
+    {"x": 28.93, "y": 6.47, "texto": "Hall"},
+    {"x": 32.57, "y": 5.24, "texto": "Quarto 2"},
+    {"x": 29.24, "y": 10.35, "texto": "Sala, cozinha, jantar"},
+    {"x": 10.41, "y": 3.22, "texto": "Escada"},
+    {"x": 12.94, "y": 1.19, "texto": "Elevadores"},
+    {"x": 12.94, "y": 4.41, "texto": "Hall"},
+    {"x": 20.74, "y": 7.25, "texto": "Corredor"}
+   ]
+  }
+ },
+ "tipologias": {
+  "01": {
+   "descricao": "Residência de esquina com três quartos",
+   "quartos": 3,
+   "banheiros": 2,
+   "areaInterna": 124,
+   "areaExterna": 10.9,
+   "nomeExterna": "Terraço",
+   "areaTotal": 135,
+   "nomeSala": "Sala, cozinha, jantar",
+   "areaSala": 42,
+   "distribuicao": "3 quartos, 2 banheiros",
+   "orientacao": "Norte, oeste e sul"
+  },
+  "02": {
+   "descricao": "Residência de um quarto com varanda",
+   "quartos": 1,
+   "banheiros": 1,
+   "areaInterna": 67,
+   "areaExterna": 7.5,
+   "nomeExterna": "Varanda",
+   "areaTotal": 75,
+   "nomeSala": "Sala, cozinha",
+   "areaSala": 36.5,
+   "distribuicao": "1 quarto, 1 banheiro",
+   "orientacao": "Sul, sobre o jardim"
+  },
+  "03": {
+   "descricao": "Residência de um quarto com escritório",
+   "quartos": 1,
+   "banheiros": 1,
+   "areaInterna": 60,
+   "areaExterna": 7,
+   "nomeExterna": "Varanda",
+   "areaTotal": 67,
+   "nomeSala": "Sala, cozinha",
+   "areaSala": 23.5,
+   "distribuicao": "1 quarto, escritório, 1 banheiro",
+   "orientacao": "Sul, sobre o jardim"
+  },
+  "04": {
+   "descricao": "Residência de dois quartos com terraço",
+   "quartos": 2,
+   "banheiros": 2,
+   "areaInterna": 77,
+   "areaExterna": 6.4,
+   "nomeExterna": "Terraço",
+   "areaTotal": 83,
+   "nomeSala": "Sala, cozinha",
+   "areaSala": 28,
+   "distribuicao": "2 quartos, 2 banheiros",
+   "orientacao": "Norte, sobre a praça"
+  },
+  "05": {
+   "descricao": "Residência de esquina com dois quartos",
+   "quartos": 2,
+   "banheiros": 2,
+   "areaInterna": 94,
+   "areaExterna": 10.9,
+   "nomeExterna": "Terraço",
+   "areaTotal": 105,
+   "nomeSala": "Sala, cozinha, jantar",
+   "areaSala": 34,
+   "distribuicao": "2 quartos, 2 banheiros",
+   "orientacao": "Norte, leste e sul"
+  }
+ },
+ "andares": [
+  {
+   "numero": 12,
+   "planta": "padrao",
+   "apartamentos": [
+    {"id": "12.01", "tipo": "01", "status": "disponivel", "preco": 2050000},
+    {"id": "12.02", "tipo": "02", "status": "disponivel", "preco": 940000},
+    {"id": "12.03", "tipo": "03", "status": "disponivel", "preco": 875000},
+    {"id": "12.04", "tipo": "04", "status": "disponivel", "preco": 1125000},
+    {"id": "12.05", "tipo": "05", "status": "disponivel", "preco": 1540000}
+   ]
+  },
+  {
+   "numero": 11,
+   "planta": "padrao",
+   "apartamentos": [
+    {"id": "11.01", "tipo": "01", "status": "disponivel", "preco": 2015000},
+    {"id": "11.02", "tipo": "02", "status": "disponivel", "preco": 925000},
+    {"id": "11.03", "tipo": "03", "status": "disponivel", "preco": 860000},
+    {"id": "11.04", "tipo": "04", "status": "disponivel", "preco": 1105000},
+    {"id": "11.05", "tipo": "05", "status": "disponivel", "preco": 1515000}
+   ]
+  },
+  {
+   "numero": 10,
+   "planta": "padrao",
+   "apartamentos": [
+    {"id": "10.01", "tipo": "01", "status": "vendido", "preco": 1980000},
+    {"id": "10.02", "tipo": "02", "status": "disponivel", "preco": 910000},
+    {"id": "10.03", "tipo": "03", "status": "disponivel", "preco": 845000},
+    {"id": "10.04", "tipo": "04", "status": "disponivel", "preco": 1085000},
+    {"id": "10.05", "tipo": "05", "status": "disponivel", "preco": 1490000}
+   ]
+  },
+  {
+   "numero": 9,
+   "planta": "padrao",
+   "apartamentos": [
+    {"id": "09.01", "tipo": "01", "status": "disponivel", "preco": 1940000},
+    {"id": "09.02", "tipo": "02", "status": "disponivel", "preco": 890000},
+    {"id": "09.03", "tipo": "03", "status": "vendido", "preco": 830000},
+    {"id": "09.04", "tipo": "04", "status": "disponivel", "preco": 1065000},
+    {"id": "09.05", "tipo": "05", "status": "disponivel", "preco": 1460000}
+   ]
+  },
+  {
+   "numero": 8,
+   "planta": "padrao",
+   "apartamentos": [
+    {"id": "08.01", "tipo": "01", "status": "disponivel", "preco": 1905000},
+    {"id": "08.02", "tipo": "02", "status": "disponivel", "preco": 875000},
+    {"id": "08.03", "tipo": "03", "status": "disponivel", "preco": 815000},
+    {"id": "08.04", "tipo": "04", "status": "vendido", "preco": 1045000},
+    {"id": "08.05", "tipo": "05", "status": "disponivel", "preco": 1430000}
+   ]
+  },
+  {
+   "numero": 7,
+   "planta": "padrao",
+   "apartamentos": [
+    {"id": "07.01", "tipo": "01", "status": "disponivel", "preco": 1870000},
+    {"id": "07.02", "tipo": "02", "status": "disponivel", "preco": 860000},
+    {"id": "07.03", "tipo": "03", "status": "reservado", "preco": 800000},
+    {"id": "07.04", "tipo": "04", "status": "disponivel", "preco": 1025000},
+    {"id": "07.05", "tipo": "05", "status": "disponivel", "preco": 1405000}
+   ]
+  },
+  {
+   "numero": 6,
+   "planta": "padrao",
+   "apartamentos": [
+    {"id": "06.01", "tipo": "01", "status": "disponivel", "preco": 1835000},
+    {"id": "06.02", "tipo": "02", "status": "disponivel", "preco": 840000},
+    {"id": "06.03", "tipo": "03", "status": "disponivel", "preco": 785000},
+    {"id": "06.04", "tipo": "04", "status": "disponivel", "preco": 1005000},
+    {"id": "06.05", "tipo": "05", "status": "disponivel", "preco": 1380000}
+   ]
+  },
+  {
+   "numero": 5,
+   "planta": "padrao",
+   "apartamentos": [
+    {"id": "05.01", "tipo": "01", "status": "disponivel", "preco": 1795000},
+    {"id": "05.02", "tipo": "02", "status": "disponivel", "preco": 825000},
+    {"id": "05.03", "tipo": "03", "status": "disponivel", "preco": 765000},
+    {"id": "05.04", "tipo": "04", "status": "disponivel", "preco": 985000},
+    {"id": "05.05", "tipo": "05", "status": "vendido", "preco": 1350000}
+   ]
+  },
+  {
+   "numero": 4,
+   "planta": "padrao",
+   "apartamentos": [
+    {"id": "04.01", "tipo": "01", "status": "reservado", "preco": 1760000},
+    {"id": "04.02", "tipo": "02", "status": "disponivel", "preco": 810000},
+    {"id": "04.03", "tipo": "03", "status": "disponivel", "preco": 750000},
+    {"id": "04.04", "tipo": "04", "status": "vendido", "preco": 965000},
+    {"id": "04.05", "tipo": "05", "status": "vendido", "preco": 1325000}
+   ]
+  },
+  {
+   "numero": 3,
+   "planta": "padrao",
+   "apartamentos": [
+    {"id": "03.01", "tipo": "01", "status": "disponivel", "preco": 1725000},
+    {"id": "03.02", "tipo": "02", "status": "disponivel", "preco": 790000},
+    {"id": "03.03", "tipo": "03", "status": "disponivel", "preco": 735000},
+    {"id": "03.04", "tipo": "04", "status": "vendido", "preco": 945000},
+    {"id": "03.05", "tipo": "05", "status": "disponivel", "preco": 1295000}
+   ]
+  },
+  {
+   "numero": 2,
+   "planta": "padrao",
+   "apartamentos": [
+    {"id": "02.01", "tipo": "01", "status": "disponivel", "preco": 1690000},
+    {"id": "02.02", "tipo": "02", "status": "disponivel", "preco": 775000},
+    {"id": "02.03", "tipo": "03", "status": "reservado", "preco": 720000},
+    {"id": "02.04", "tipo": "04", "status": "disponivel", "preco": 925000},
+    {"id": "02.05", "tipo": "05", "status": "vendido", "preco": 1270000}
+   ]
+  },
+  {
+   "numero": 1,
+   "planta": "padrao",
+   "apartamentos": [
+    {"id": "01.01", "tipo": "01", "status": "disponivel", "preco": 1650000},
+    {"id": "01.02", "tipo": "02", "status": "vendido", "preco": 760000},
+    {"id": "01.03", "tipo": "03", "status": "disponivel", "preco": 705000},
+    {"id": "01.04", "tipo": "04", "status": "disponivel", "preco": 905000},
+    {"id": "01.05", "tipo": "05", "status": "vendido", "preco": 1240000}
+   ]
+  }
+ ],
+ "apartamento3d": {
+  "alturaParede": 2.2,
+  "cores": {
+   "parede": "#f7f3e9",
+   "corte": "#2b312e",
+   "piso": "#ddc9a6",
+   "molhado": "#c9d6d6",
+   "externo": "#b4c4a2",
+   "base": "#d9d7cb",
+   "movel": "#fbfaf5",
+   "tecido": "#8ea481",
+   "bancada": "#878c86",
+   "madeira": "#a98b63",
+   "vidro": "#a8c2c6",
+   "caixilho": "#3c4340"
+  }
+ }
+}
+</script>
+
+<script type="module" onerror="document.getElementById('aviso').textContent='Não foi possível carregar a biblioteca 3D. Verifique a conexão com a internet e recarregue a página.';document.getElementById('aviso').hidden=false">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const dois = n => String(n).padStart(2, '0');
+
+function aviso(texto) { const a = $('#aviso'); a.textContent = texto; a.hidden = false; }
+
+let P;
+try {
+  P = JSON.parse($('#projeto').textContent);
+  validar(P);
+} catch (erro) {
+  aviso(`Os dados do projeto têm um erro: ${erro.message}`);
+  throw erro;
+}
+
+function validar(p) {
+  const faltando = ['empreendimento', 'ambiente', 'camera', 'predio', 'terreno', 'plantas', 'tipologias', 'andares'].filter(k => !p[k]);
+  if (faltando.length) throw new Error(`faltam as seções ${faltando.join(', ')}`);
+  for (const a of p.andares) {
+    if (!p.plantas[a.planta]) throw new Error(`o andar ${a.numero} usa a planta "${a.planta}", que não existe`);
+    for (const x of a.apartamentos) {
+      if (!p.tipologias[x.tipo]) throw new Error(`o apartamento ${x.id} usa a tipologia "${x.tipo}", que não existe`);
+    }
+  }
+}
+
+/* ---------- Dados derivados ---------- */
+const E = P.empreendimento;
+const moeda = new Intl.NumberFormat(E.idioma || 'pt-BR', { style: 'currency', currency: E.moeda || 'BRL', maximumFractionDigits: 0 });
+const dinheiro = v => moeda.format(v).replace(/ /g, ' ');
+const m2 = v => `${v.toLocaleString(E.idioma || 'pt-BR')} m²`;
+const NOME_ESTADO = { disponivel: 'Disponível', reservado: 'Reservado', vendido: 'Vendido' };
+const andares = [...P.andares].sort((a, b) => b.numero - a.numero);
+const aptos = P.andares.flatMap(a => a.apartamentos.map(x => ({ ...x, andar: a.numero, t: P.tipologias[x.tipo] })));
+const livres = a => a.apartamentos.filter(x => x.status === 'disponivel');
+const menor = lista => lista.length ? Math.min(...lista.map(x => x.preco)) : null;
+const quartos = n => `${n} ${n === 1 ? 'quarto' : 'quartos'}`;
+function resumoAndar(a) {
+  const d = livres(a), n = a.apartamentos.length;
+  return d.length ? `${d.length} de ${n} apartamentos disponíveis, a partir de ${dinheiro(menor(d))}` : 'Nenhum apartamento disponível';
+}
+
+document.title = E.nome;
+document.documentElement.style.setProperty('--fundo', P.ambiente.fundo);
+if (P.ambiente.destaque) document.documentElement.style.setProperty('--destaque', P.ambiente.destaque);
+$('#marca b').textContent = E.nome;
+$('#marca span').textContent = E.local;
+$('#titulo').textContent = E.titulo;
+$('#resumo').textContent = E.resumo;
+const todosLivres = aptos.filter(x => x.status === 'disponivel');
+$('#numeros').innerHTML = [
+  ['Andares', P.andares.length], ['Residências', aptos.length],
+  ['Disponíveis', todosLivres.length], ['A partir de', todosLivres.length ? dinheiro(menor(todosLivres)) : '—'],
+].map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('');
+
+$('#lista-andares').innerHTML = andares.map(a => `
+  <li><button class="andar" type="button" data-andar="${a.numero}" aria-label="Andar ${a.numero}, ${esc(resumoAndar(a))}">
+    <b>${dois(a.numero)}</b>
+    <span class="quadros" aria-hidden="true">${a.apartamentos.map(x => `<i class="q ${x.status}"></i>`).join('')}</span>
+    <span>${livres(a).length} ${livres(a).length === 1 ? 'disponível' : 'disponíveis'}</span>
+  </button></li>`).join('');
+
+/* ---------- Utilitários 3D ---------- */
+const lambert = (cor, extra = {}) => new THREE.MeshLambertMaterial({ color: cor, ...extra });
+const unidade = new THREE.BoxGeometry(1, 1, 1);
+
+function area(p) { let a = 0; p.forEach(([x, y], i) => { const [u, v] = p[(i + 1) % p.length]; a += x * v - u * y; }); return a / 2; }
+function deslocar(p, d) {
+  const s = Math.sign(area(p)), n = p.length;
+  const normal = (a, b) => {
+    const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1;
+    return [dy / l * s, -dx / l * s];
+  };
+  return p.map((c, i) => {
+    const n1 = normal(p[(i - 1 + n) % n], c), n2 = normal(c, p[(i + 1) % n]);
+    const k = 1 + n1[0] * n2[0] + n1[1] * n2[1];
+    return [c[0] + (n1[0] + n2[0]) * d / k, c[1] + (n1[1] + n2[1]) * d / k];
+  });
+}
+function prisma(pts, h, base = 0) {
+  const g = new THREE.ExtrudeGeometry(new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(x, y))), { depth: h, bevelEnabled: false });
+  g.rotateX(Math.PI / 2);
+  g.translate(0, base + h, 0);
+  return g;
+}
+function malha(g, m, opts = {}) {
+  const o = new THREE.Mesh(g, m);
+  o.castShadow = opts.lanca !== false;
+  o.receiveShadow = opts.recebe !== false;
+  return o;
+}
+function lote(mat) {
+  const itens = [];
+  const q = new THREE.Quaternion(), eixo = new THREE.Vector3(0, 1, 0);
+  return {
+    caixa(x, y, z, sx, sy, sz, giro = 0) { itens.push([x, y, z, sx, sy, sz, giro]); },
+    viga(a, b, y, largura, altura, fora = 0) {
+      const dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz);
+      const nx = dz / l, nz = -dx / l;
+      this.caixa((a[0] + b[0]) / 2 + nx * fora, y, (a[1] + b[1]) / 2 + nz * fora, l, altura, largura, -Math.atan2(dz, dx));
+    },
+    criar(pai, opts = {}) {
+      if (!itens.length) return;
+      const m = new THREE.InstancedMesh(unidade, mat, itens.length);
+      const mx = new THREE.Matrix4();
+      itens.forEach(([x, y, z, sx, sy, sz, giro], i) => {
+        q.setFromAxisAngle(eixo, giro);
+        mx.compose(new THREE.Vector3(x, y, z), q, new THREE.Vector3(sx, sy, sz));
+        m.setMatrixAt(i, mx);
+      });
+      m.castShadow = opts.lanca !== false;
+      m.receiveShadow = opts.recebe !== false;
+      pai.add(m);
+    },
+  };
+}
+
+/* ---------- Sol: estado compartilhado, disco com raios e marcador de direção ---------- */
+const solEstado = { atual: null, ouvintes: [] };
+const clamp01 = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+/* Direção do sol no espaço do prédio. az é medido a partir do norte, no sentido horário. */
+function direcaoSol({ el, az }, giroPredio = 0) {
+  const e = el * Math.PI / 180, a = az * Math.PI / 180 - (P.terreno.norte || 0) * Math.PI / 180;
+  return new THREE.Vector3(Math.sin(a) * Math.cos(e), Math.sin(e), -Math.cos(a) * Math.cos(e))
+    .applyAxisAngle(new THREE.Vector3(0, 1, 0), -giroPredio);
+}
+let texturaDoSol = null;
+function texturaSol() {
+  const n = 256, c = document.createElement('canvas');
+  c.width = c.height = n;
+  const g = c.getContext('2d'), m = n / 2;
+  const halo = g.createRadialGradient(m, m, 0, m, m, m);
+  halo.addColorStop(0, 'rgba(255,238,190,.85)');
+  halo.addColorStop(.14, 'rgba(255,222,150,.6)');
+  halo.addColorStop(.3, 'rgba(255,204,120,.22)');
+  halo.addColorStop(1, 'rgba(255,196,110,0)');
+  g.fillStyle = halo;
+  g.fillRect(0, 0, n, n);
+  g.translate(m, m);
+  for (let i = 0; i < 16; i++) {
+    g.rotate(Math.PI / 8);
+    const alcance = m * (i % 2 ? .62 : .94), raio = g.createLinearGradient(m * .16, 0, alcance, 0);
+    raio.addColorStop(0, 'rgba(255,214,130,.7)');
+    raio.addColorStop(1, 'rgba(255,214,130,0)');
+    g.fillStyle = raio;
+    g.beginPath();
+    g.moveTo(m * .16, -3.2);
+    g.lineTo(alcance, 0);
+    g.lineTo(m * .16, 3.2);
+    g.fill();
+  }
+  g.fillStyle = 'rgb(255,248,222)';
+  g.beginPath();
+  g.arc(0, 0, m * .13, 0, Math.PI * 2);
+  g.fill();
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+function texturaFeixe() {
+  const c = document.createElement('canvas');
+  c.width = 256;
+  c.height = 32;
+  const g = c.getContext('2d'), ao = g.createLinearGradient(0, 0, 256, 0);
+  ao.addColorStop(0, 'rgba(255,226,160,0)');
+  ao.addColorStop(.25, 'rgba(255,222,150,.95)');
+  ao.addColorStop(.75, 'rgba(255,214,130,.55)');
+  ao.addColorStop(1, 'rgba(255,208,120,0)');
+  g.fillStyle = ao;
+  g.fillRect(0, 0, 256, 32);
+  const borda = g.createLinearGradient(0, 0, 0, 32);
+  borda.addColorStop(0, 'rgba(0,0,0,0)');
+  borda.addColorStop(.5, 'rgba(0,0,0,1)');
+  borda.addColorStop(1, 'rgba(0,0,0,0)');
+  g.globalCompositeOperation = 'destination-in';
+  g.fillStyle = borda;
+  g.fillRect(0, 0, 256, 32);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+function criarDiscoSol(tamanho) {
+  texturaDoSol ||= texturaSol();
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: texturaDoSol, transparent: true, depthWrite: false, fog: false }));
+  s.scale.set(tamanho, tamanho, 1);
+  s.renderOrder = 5;
+  return s;
+}
+function ajustarDiscoSol(s, { el }) {
+  s.visible = el > -1;
+  s.material.color.set('#ff8f45').lerp(new THREE.Color('#ffffff'), clamp01(el / 30));
+  s.material.opacity = clamp01((el + 1) / 4);
+}
+function criarPontoSol(pai) {
+  const e = document.createElement('span');
+  e.className = 'sol-ponto';
+  e.textContent = '☀';
+  e.title = 'O sol está fora da tela, nessa direção';
+  e.setAttribute('aria-hidden', 'true');
+  e.hidden = true;
+  pai.appendChild(e);
+  return e;
+}
+/* Quando o disco do sol está fora do quadro, um marcador gira ao redor do alvo e aponta para o lado dele */
+function posicionarPontoSol(ponto, alvo, centro, camera, w, h, visivel, raio) {
+  const v = alvo.clone().project(camera), atras = alvo.clone().applyMatrix4(camera.matrixWorldInverse).z > 0;
+  if (!visivel || (!atras && Math.abs(v.x) < .94 && Math.abs(v.y) < .94)) { ponto.hidden = true; return; }
+  const c = centro.clone().project(camera), d = alvo.clone().sub(centro).transformDirection(camera.matrixWorldInverse);
+  const k = Math.hypot(d.x, d.y), dx = k > 1e-4 ? d.x / k : 0, dy = k > 1e-4 ? d.y / k : 1;
+  ponto.hidden = false;
+  ponto.style.left = `${(c.x + 1) / 2 * w + dx * raio}px`;
+  ponto.style.top = `${(1 - c.y) / 2 * h - dy * raio}px`;
+}
+
+/* ---------- Cena 3D ---------- */
+const cena3d = (() => {
+  const canvas = $('#cena');
+  let renderer;
+  try {
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: false });
+  } catch {
+    aviso('Este navegador não abriu a cena 3D. Use a lista de andares para ver as plantas.');
+    return { ok: false, sol() {}, marcar() {}, ativar() {} };
+  }
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  const A = P.ambiente, C = P.camera, D = P.predio;
+  const fundo = new THREE.Color(A.fundo);
+  const scene = new THREE.Scene();
+  scene.background = fundo;
+  scene.fog = new THREE.Fog(fundo, A.neblina[0], A.neblina[1]);
+
+  const camera = new THREE.PerspectiveCamera(C.fov, 1, 1, 1500);
+  camera.position.fromArray(C.posicao);
+  const controles = new OrbitControls(camera, canvas);
+  controles.target.fromArray(C.alvo);
+  controles.enablePan = false;
+  controles.enableDamping = true;
+  controles.dampingFactor = .08;
+  const inicial = camera.position.distanceTo(controles.target);
+  controles.minDistance = inicial * .55;
+  controles.maxDistance = inicial * 1.25;
+  controles.minPolarAngle = .55;
+  controles.maxPolarAngle = 1.42;
+  controles.update();
+
+  const ceuLuz = new THREE.HemisphereLight(0xffffff, new THREE.Color(A.corBaixa), A.luzCeu);
+  scene.add(ceuLuz);
+  const sol = new THREE.DirectionalLight(0xfffaf0, A.luzSol);
+  sol.position.fromArray(A.sol);
+  sol.castShadow = true;
+  sol.shadow.mapSize.set(4096, 4096);
+  const alcance = P.terreno.alcanceSombra;
+  Object.assign(sol.shadow.camera, { left: -alcance, right: alcance, top: alcance, bottom: -alcance, near: 1, far: 700 });
+  sol.shadow.bias = -.0004;
+  sol.shadow.normalBias = .05;
+  sol.shadow.radius = 5;
+  scene.add(sol);
+  const disco = criarDiscoSol(95);
+  disco.visible = false;
+  scene.add(disco);
+  const pontoPredio = criarPontoSol($('#vista-predio'));
+  /* Feixes: faixas de luz que descem da direção do sol e passam ao redor do prédio */
+  const feixes = new THREE.Group(), centroFeixes = new THREE.Vector3(...C.alvo);
+  const matFeixe = new THREE.MeshBasicMaterial({ map: texturaFeixe(), transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: false, opacity: 0 });
+  const feixeGeo = new THREE.PlaneGeometry(1, 4.2);
+  const listaFeixes = Array.from({ length: 16 }, (_, i) => {
+    const g = new THREE.Group(), ang = i * 2.399963, raio = 30 + (i * 37 % 11) * 4;
+    for (const giro of [0, Math.PI / 2]) { const m = new THREE.Mesh(feixeGeo, matFeixe); m.rotation.x = giro; g.add(m); }
+    feixes.add(g);
+    return { g, a: Math.cos(ang) * raio, b: Math.sin(ang) * raio };
+  });
+  scene.add(feixes);
+  function posicionarFeixes(d, dia) {
+    const ref = Math.abs(d.y) > .98 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+    const u = new THREE.Vector3().crossVectors(d, ref).normalize(), w = new THREE.Vector3().crossVectors(d, u);
+    const giro = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(1, 0, 0), d.clone().negate());
+    listaFeixes.forEach(({ g, a, b }) => {
+      const inicio = u.clone().multiplyScalar(a).addScaledVector(w, b).addScaledVector(d, 300).add(centroFeixes);
+      const L = clamp01(inicio.y / Math.max(d.y, .05), 80, 340), fim = inicio.clone().addScaledVector(d, -L);
+      g.position.copy(inicio).add(fim).multiplyScalar(.5);
+      g.quaternion.copy(giro);
+      g.scale.set(L, 1, 1);
+    });
+    matFeixe.opacity = .5 * dia;
+    feixes.visible = dia > 0;
+  }
+
+  /* Chão */
+  const chao = new THREE.Mesh(new THREE.PlaneGeometry(3000, 3000), new THREE.ShadowMaterial({ opacity: A.sombraChao }));
+  chao.rotation.x = -Math.PI / 2;
+  chao.receiveShadow = true;
+  scene.add(chao);
+
+  for (const a of P.terreno.areas) {
+    scene.add(malha(prisma(a.pontos, a.altura ?? .08, a.base ?? 0), lambert(a.cor), { lanca: false }));
+  }
+  for (const r of P.terreno.ruas || []) {
+    const faixa = lote(lambert(r.corFaixa || '#ffffff'));
+    r.pontos.forEach((a, i) => {
+      const b = r.pontos[i + 1];
+      if (!b) return;
+      const dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz), nx = -dz / l, nz = dx / l;
+      const fita = (lar, cor, alt) => {
+        const m = lar / 2;
+        scene.add(malha(prisma([[a[0] + nx * m, a[1] + nz * m], [b[0] + nx * m, b[1] + nz * m], [b[0] - nx * m, b[1] - nz * m], [a[0] - nx * m, a[1] - nz * m]], alt), lambert(cor), { lanca: false }));
+      };
+      if (r.calcada) fita(r.largura + r.calcada * 2, r.corCalcada, .12);
+      fita(r.largura, r.cor, .16);
+      if (r.faixa) for (let s = 2; s < l; s += 7) {
+        faixa.caixa(a[0] + dx / l * s, .18, a[1] + dz / l * s, 3, .02, .16, -Math.atan2(dz, dx));
+      }
+    });
+    faixa.criar(scene, { lanca: false });
+  }
+
+  /* Vizinhos */
+  const janelasVizinhos = [];
+  for (const v of P.terreno.vizinhos || []) {
+    const cor = new THREE.Color(v.cor || A.corVizinhos).lerp(fundo, v.esmaecer ?? .5);
+    const corJanela = cor.clone().lerp(new THREE.Color(0x6f7770), .22);
+    const g = new THREE.Group();
+    g.position.set(v.x, 0, v.z);
+    g.rotation.y = (v.rotacao || 0) * Math.PI / 180;
+    const H = v.andares * (v.alturaAndar || 3);
+    const corpo = malha(unidade, lambert(cor));
+    corpo.scale.set(v.largura, H, v.profundidade);
+    corpo.position.y = H / 2;
+    g.add(corpo);
+    if (v.telhado === 'duasAguas') {
+      const a = v.profundidade / 2, alt = v.alturaTelhado || 4;
+      const t = new THREE.ExtrudeGeometry(new THREE.Shape([new THREE.Vector2(-a, 0), new THREE.Vector2(a, 0), new THREE.Vector2(0, alt)]), { depth: v.largura, bevelEnabled: false });
+      t.rotateY(Math.PI / 2);
+      t.translate(-v.largura / 2, H, 0);
+      g.add(malha(t, lambert(cor.clone().multiplyScalar(.96))));
+    }
+    const matJanela = lambert(corJanela);
+    janelasVizinhos.push(matJanela);
+    const janelas = lote(matJanela);
+    const passo = v.passoJanela || 4;
+    const nx = Math.floor(v.largura / passo), nz = Math.floor(v.profundidade / passo);
+    for (let f = 0; f < v.andares; f++) {
+      const y = (f + .55) * (v.alturaAndar || 3);
+      for (let i = 0; i < nx; i++) {
+        const x = (i + .5 - nx / 2) * passo;
+        janelas.caixa(x, y, v.profundidade / 2 + .02, 1.5, 1.8, .06);
+        janelas.caixa(x, y, -v.profundidade / 2 - .02, 1.5, 1.8, .06);
+      }
+      for (let i = 0; i < nz; i++) {
+        const z = (i + .5 - nz / 2) * passo;
+        janelas.caixa(v.largura / 2 + .02, y, z, .06, 1.8, 1.5);
+        janelas.caixa(-v.largura / 2 - .02, y, z, .06, 1.8, 1.5);
+      }
+    }
+    janelas.criar(g, { lanca: false, recebe: false });
+    scene.add(g);
+  }
+
+  /* Vegetação: cada forma devolve peças { geometria, cor, local }. Novas formas entram aqui. */
+  function degrade(g, cor) {
+    g.computeBoundingBox();
+    const { min, max } = g.boundingBox, pos = g.attributes.position, cores = new Float32Array(pos.count * 3);
+    const c = new THREE.Color(cor), t = new THREE.Color();
+    for (let i = 0; i < pos.count; i++) {
+      const k = (pos.getY(i) - min.y) / ((max.y - min.y) || 1);
+      t.copy(c).multiplyScalar(.8 + k * .3).toArray(cores, i * 3);
+    }
+    g.setAttribute('color', new THREE.BufferAttribute(cores, 3));
+    return g;
+  }
+  const tronco = (e, h, r = .2) => ({ g: new THREE.CylinderGeometry(r * .75, r, h, 7).translate(0, h / 2, 0), cor: e.corTronco, degrade: false });
+  const FORMAS = {
+    redonda: e => [tronco(e, e.altura * .55), { g: degrade(new THREE.SphereGeometry(e.raio, 10, 7), e.cor).translate(0, e.altura - e.raio, 0), cor: '#ffffff', degrade: true }],
+    cipreste: e => [tronco(e, e.altura * .3), { g: degrade(new THREE.SphereGeometry(1, 10, 8).scale(e.raio, e.altura * .43, e.raio), e.cor).translate(0, e.altura * .55, 0), cor: '#ffffff', degrade: true }],
+    cone: e => [tronco(e, e.altura * .2), { g: degrade(new THREE.ConeGeometry(e.raio, e.altura * .85, 8), e.cor).translate(0, e.altura * .575, 0), cor: '#ffffff', degrade: true }],
+    arbusto: e => [{ g: degrade(new THREE.SphereGeometry(1, 9, 6).scale(e.raio, e.altura * .55, e.raio), e.cor).translate(0, e.altura * .45, 0), cor: '#ffffff', degrade: true }],
+    palmeira: e => {
+      const pecas = [tronco(e, e.altura, .22)];
+      const n = e.folhas || 8;
+      for (let i = 0; i < n; i++) {
+        const f = new THREE.SphereGeometry(1, 6, 4).scale(e.raio * .55, .1, .34);
+        f.translate(e.raio * .55, 0, 0).rotateZ(-.42).rotateY(i / n * Math.PI * 2).translate(0, e.altura, 0);
+        pecas.push({ g: degrade(f, e.cor), cor: '#ffffff', degrade: true });
+      }
+      return pecas;
+    },
+  };
+  const plantas = [];
+  for (const f of P.terreno.fileiras || []) {
+    for (let i = 0; i < f.quantidade; i++) {
+      const k = f.quantidade === 1 ? 0 : i / (f.quantidade - 1);
+      plantas.push({ especie: f.especie, x: f.de[0] + (f.ate[0] - f.de[0]) * k, z: f.de[1] + (f.ate[1] - f.de[1]) * k, escala: f.escala });
+    }
+  }
+  plantas.push(...(P.terreno.plantio || []));
+  const porEspecie = {};
+  plantas.forEach(p => (porEspecie[p.especie] ||= []).push(p));
+  for (const [nome, lista] of Object.entries(porEspecie)) {
+    const e = P.terreno.especies[nome];
+    const forma = e && FORMAS[e.forma];
+    if (!forma) { console.warn(`Espécie ou forma desconhecida: ${nome}`); continue; }
+    for (const peca of forma(e)) {
+      const mat = lambert(peca.cor, { vertexColors: peca.degrade });
+      const m = new THREE.InstancedMesh(peca.g, mat, lista.length);
+      const mx = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
+      lista.forEach((p, i) => {
+        const s = (p.escala || 1);
+        q.setFromAxisAngle(up, (i * 2.4) % 6.28);
+        mx.compose(new THREE.Vector3(p.x, 0, p.z), q, new THREE.Vector3(s, s, s));
+        m.setMatrixAt(i, mx);
+      });
+      m.castShadow = m.receiveShadow = true;
+      scene.add(m);
+    }
+  }
+
+  /* Prédio */
+  const F = D.fachada, cores = D.cores;
+  const larg = Math.max(...D.laje.map(p => p[0])), prof = Math.max(...D.laje.map(p => p[1]));
+  const raiz = new THREE.Group();
+  raiz.position.set(D.posicao?.[0] || 0, 0, D.posicao?.[1] || 0);
+  raiz.rotation.y = (D.rotacao || 0) * Math.PI / 180;
+  const predio = new THREE.Group();
+  predio.position.set(-larg / 2, 0, -prof / 2);
+  raiz.add(predio);
+  scene.add(raiz);
+
+  const nAndares = P.andares.length;
+  const baseAndar = n => D.terreo.altura + (n - 1) * D.alturaAndar;
+  const altura = baseAndar(nAndares + 1);
+  const estrutura = lambert(cores.estrutura);
+  const vidros = lote(new THREE.MeshLambertMaterial({ color: cores.vidro }));
+  const vidrosBase = lote(new THREE.MeshLambertMaterial({ color: cores.vidroTerreo }));
+  const matLuz = new THREE.MeshBasicMaterial({ color: '#ffd296', transparent: true, opacity: 0, depthWrite: false });
+  const luzes = lote(matLuz);
+  const acesa = (n, p) => ((n * 7919 + Math.round(p[0] * 31 + p[1] * 17)) * 2654435761 >>> 0) % 100 < 46;
+  const caixilhos = lote(lambert(cores.caixilho));
+  const pilares = lote(estrutura);
+  const balancos = lote(estrutura);
+  const corrimaos = lote(lambert(cores.caixilho));
+  const paineis = lote(new THREE.MeshLambertMaterial({ color: cores.vidroGuarda, transparent: true, opacity: .32, depthWrite: false }));
+
+  function vaos(poly, cada) {
+    poly.forEach((a, i) => {
+      const b = poly[(i + 1) % poly.length];
+      const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy), n = Math.max(1, Math.round(l / F.vao));
+      for (let k = 0; k < n; k++) {
+        const t0 = k / n, t1 = (k + 1) / n;
+        cada([a[0] + dx * t0, a[1] + dy * t0], [a[0] + dx * t1, a[1] + dy * t1], l / n, k === 0);
+      }
+    });
+  }
+  const linhaVidro = deslocar(D.envidracado, -F.recuoVidro);
+  const pe = D.alturaAndar - F.espessuraLaje;
+
+  vaos(linhaVidro, (a, b) => {
+    const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy);
+    const ang = -Math.atan2(dy, dx), meio = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    vidrosBase.viga(a, b, D.terreo.altura / 2, .1, D.terreo.altura);
+    luzes.viga(a, b, D.terreo.altura / 2, .13, D.terreo.altura - .4);
+    caixilhos.viga(a, b, D.terreo.altura * .72, .14, .08);
+    for (let n = 1; n <= nAndares; n++) {
+      const y = baseAndar(n) + F.espessuraLaje, cy = y + pe / 2;
+      vidros.viga(a, b, cy, .1, pe);
+      if (acesa(n, a)) luzes.viga(a, b, cy, .13, pe - .12);
+      caixilhos.caixa(meio[0], cy, meio[1], .07, pe, .16, ang);
+      caixilhos.viga(a, b, y + pe * .62, .16, .07);
+      if (l > 2.5) {
+        for (const s of [-.5, .5]) caixilhos.caixa(meio[0] + dx * s, cy, meio[1] + dy * s, .1, pe, .16, ang);
+      }
+    }
+  });
+  vaos(D.laje, a => pilares.caixa(a[0], altura / 2, a[1], F.pilar, altura, F.pilar));
+  for (const p of D.envidracado) pilares.caixa(p[0], altura / 2, p[1], F.pilar * .8, altura, F.pilar * .8);
+
+  const lajeG = prisma(deslocar(D.laje, F.beiral), F.espessuraLaje);
+  const lajes = new THREE.InstancedMesh(lajeG, estrutura, nAndares);
+  const mxL = new THREE.Matrix4();
+  for (let n = 1; n <= nAndares; n++) lajes.setMatrixAt(n - 1, mxL.makeTranslation(0, baseAndar(n), 0));
+  lajes.castShadow = lajes.receiveShadow = true;
+  predio.add(lajes);
+
+  function guarda(a, b, y, fora = 0) {
+    corrimaos.viga(a, b, y + 1.08, .05, .05, fora);
+    corrimaos.viga(a, b, y + .55, .025, .025, fora);
+    paineis.viga(a, b, y + .56, .03, 1.02, fora);
+  }
+  for (let n = 1; n <= nAndares; n++) {
+    const y = baseAndar(n) + F.espessuraLaje;
+    for (const linha of D.guardaCorpos || []) linha.forEach((a, i) => { if (linha[i + 1]) guarda(a, linha[i + 1], y); });
+    for (const b of D.balancos || []) {
+      const { x, y: z, largura: l, profundidade: p } = b;
+      balancos.caixa(x + l / 2, y - .1, z + p / 2, l, .2, p);
+      const c = [[x, z], [x + l, z], [x + l, z + p], [x, z + p]];
+      const lado = { sul: [[c[1], c[2]], [c[2], c[3]], [c[3], c[0]]], norte: [[c[3], c[0]], [c[0], c[1]], [c[1], c[2]]], leste: [[c[0], c[1]], [c[1], c[2]], [c[2], c[3]]], oeste: [[c[2], c[3]], [c[3], c[0]], [c[0], c[1]]] }[b.lado || 'sul'];
+      for (const [u, v] of lado) guarda(u, v, y);
+    }
+  }
+
+  /* Cobertura */
+  const cob = D.cobertura;
+  predio.add(malha(prisma(deslocar(D.laje, F.beiral + .08), .55, altura), lambert(cores.cobertura)));
+  if (cob.casaDeMaquinas) {
+    const c = cob.casaDeMaquinas, base = altura + .55;
+    const caixa = malha(unidade, lambert(cores.casaDeMaquinas));
+    caixa.scale.set(c.largura, c.altura, c.profundidade);
+    caixa.position.set(c.x + c.largura / 2, base + c.altura / 2, c.y + c.profundidade / 2);
+    predio.add(caixa);
+    const frisos = lote(lambert(new THREE.Color(cores.casaDeMaquinas).multiplyScalar(.82)));
+    for (let x = .35; x < c.largura; x += .7) {
+      frisos.caixa(c.x + x, base + c.altura * .45, c.y + c.profundidade + .04, .08, c.altura * .9, .08);
+      frisos.caixa(c.x + x, base + c.altura * .45, c.y - .04, .08, c.altura * .9, .08);
+    }
+    frisos.criar(predio);
+  }
+  const verdes = lote(lambert(cores.canteiro));
+  for (const k of cob.canteiros || []) verdes.caixa(k.x + k.largura / 2, altura + .75, k.y + k.profundidade / 2, k.largura, .4, k.profundidade);
+  verdes.criar(predio);
+
+  for (const m of D.marquises || []) {
+    const c = malha(unidade, lambert(cores.estrutura));
+    c.scale.set(m.largura, m.espessura || .3, m.profundidade);
+    c.position.set(m.x + m.largura / 2, m.altura, m.y + m.profundidade / 2);
+    predio.add(c);
+  }
+  [vidros, vidrosBase, caixilhos, pilares, balancos, corrimaos].forEach(l => l.criar(predio));
+  paineis.criar(predio, { lanca: false, recebe: false });
+  luzes.criar(predio, { lanca: false, recebe: false });
+
+  /* Andares clicáveis e faixa de destaque */
+  const alvos = [];
+  const alvoMat = new THREE.MeshBasicMaterial();
+  for (const a of P.andares) {
+    const m = new THREE.Mesh(prisma(deslocar(D.laje, .5), D.alturaAndar, baseAndar(a.numero)), alvoMat);
+    m.visible = false;
+    m.userData.andar = a.numero;
+    predio.add(m);
+    alvos.push(m);
+  }
+  const faixa = new THREE.Mesh(
+    prisma(deslocar(D.laje, .3), D.alturaAndar - .06),
+    new THREE.MeshBasicMaterial({ color: A.destaque, transparent: true, opacity: .42, depthWrite: false, fog: false }),
+  );
+  faixa.visible = false;
+  predio.add(faixa);
+
+  /* Sol, céu e noite: el e az em graus, az medido a partir do norte no sentido horário */
+  const CEU = [[-12, '#151a24'], [-6, '#252c3d'], [-2, '#7f7887'], [2, '#e4c9ad'], [9, A.fundo]];
+  function corCeu(el) {
+    if (el <= CEU[0][0]) return new THREE.Color(CEU[0][1]);
+    for (let i = 1; i < CEU.length; i++) {
+      if (el > CEU[i][0]) continue;
+      const [e0, c0] = CEU[i - 1], [e1, c1] = CEU[i];
+      return new THREE.Color(c0).lerp(new THREE.Color(c1), (el - e0) / (e1 - e0));
+    }
+    return new THREE.Color(A.fundo);
+  }
+  const norte = (P.terreno.norte || 0) * Math.PI / 180;
+  const limitar = THREE.MathUtils.clamp;
+  function aplicarSol({ el, az }) {
+    const e = el * Math.PI / 180, a = az * Math.PI / 180 - norte;
+    sol.position.set(Math.sin(a) * Math.cos(e), Math.sin(e), -Math.cos(a) * Math.cos(e)).multiplyScalar(420);
+    disco.position.copy(sol.position);
+    ajustarDiscoSol(disco, { el });
+    posicionarFeixes(sol.position.clone().normalize(), limitar(el / 12, 0, 1));
+    const dia = limitar(el / 12, 0, 1), noite = limitar((2 - el) / 8, 0, 1);
+    sol.intensity = A.luzSol * dia;
+    sol.color.set('#ffb36b').lerp(new THREE.Color('#fffaf0'), limitar(el / 25, 0, 1));
+    chao.material.opacity = A.sombraChao * dia;
+    const c = corCeu(el);
+    scene.background.copy(c);
+    scene.fog.color.copy(c);
+    ceuLuz.intensity = A.luzCeu * (1 - noite * .72);
+    ceuLuz.color.set('#ffffff').lerp(new THREE.Color('#9aaedc'), noite);
+    matLuz.opacity = noite * .92;
+    janelasVizinhos.forEach(m => m.emissive.set('#e9b874').multiplyScalar(noite * .5));
+    return `#${c.getHexString()}`;
+  }
+
+  /* Interação */
+  const raio = new THREE.Raycaster(), ponteiro = new THREE.Vector2();
+  const rotulo = $('#rotulo');
+  let ativa = true, marcado = null, baixou = null;
+
+  function medir() {
+    const w = innerWidth, h = innerHeight;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.fov = camera.aspect < 1.3 ? Math.min(C.fov * 1.3 / camera.aspect, C.fov * 2.1) : C.fov;
+    if (w > 900) camera.setViewOffset(w, h, -w * (C.desvioTela || 0), 0, w, h);
+    else camera.setViewOffset(w, h, 0, h * .1, w, h);
+    camera.updateProjectionMatrix();
+  }
+  addEventListener('resize', medir);
+  medir();
+
+  function posicionarRotulo() {
+    if (marcado == null) return;
+    const a = P.andares.find(x => x.numero === marcado);
+    const y = baseAndar(marcado) + D.alturaAndar / 2;
+    let melhor = null;
+    const v = new THREE.Vector3();
+    for (const [x, z] of D.laje) {
+      v.set(x, y, z);
+      predio.localToWorld(v).project(camera);
+      if (!melhor || v.x < melhor.x) melhor = v.clone();
+    }
+    rotulo.style.left = `${(melhor.x + 1) / 2 * innerWidth}px`;
+    rotulo.style.top = `${(1 - melhor.y) / 2 * innerHeight}px`;
+    rotulo.innerHTML = `<b>Andar ${dois(a.numero)}</b><span>${esc(resumoAndar(a))}</span>`;
+  }
+  function marcar(n) {
+    if (n === marcado) return;
+    marcado = n;
+    faixa.visible = n != null;
+    if (n != null) faixa.position.y = baseAndar(n) + .03;
+    rotulo.hidden = n == null;
+    document.querySelectorAll('.andar').forEach(b => b.classList.toggle('ativo', Number(b.dataset.andar) === n));
+    canvas.style.cursor = n != null ? 'pointer' : '';
+    posicionarRotulo();
+  }
+  function apontar(e) {
+    ponteiro.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+    raio.setFromCamera(ponteiro, camera);
+    return raio.intersectObjects(alvos)[0]?.object.userData.andar ?? null;
+  }
+  canvas.addEventListener('pointermove', e => { if (e.pointerType !== 'touch' && !e.buttons) marcar(apontar(e)); });
+  canvas.addEventListener('pointerleave', () => marcar(null));
+  canvas.addEventListener('pointerdown', e => { baixou = [e.clientX, e.clientY]; });
+  canvas.addEventListener('pointerup', e => {
+    if (!baixou || Math.hypot(e.clientX - baixou[0], e.clientY - baixou[1]) > 6) return;
+    const n = apontar(e);
+    if (n != null) location.hash = `andar/${n}`;
+  });
+
+  function quadro() {
+    controles.update();
+    posicionarRotulo();
+    renderer.render(scene, camera);
+    posicionarPontoSol(pontoPredio, disco.position, controles.target, camera, innerWidth, innerHeight, disco.visible, Math.min(innerWidth, innerHeight) * .36);
+  }
+  renderer.setAnimationLoop(quadro);
+
+  return {
+    ok: true,
+    sol: aplicarSol,
+    marcar,
+    ativar(sim) {
+      if (sim === ativa) return;
+      ativa = sim;
+      if (!sim) marcar(null);
+      renderer.setAnimationLoop(sim ? quadro : null);
+    },
+  };
+})();
+
+/* ---------- Sol e sombra ---------- */
+(() => {
+  const loc = E.localizacao;
+  if (!loc || !cena3d.ok) return;
+  const painel = $('#sol'), hora = $('#sol-hora'), data = $('#sol-data'), info = $('#sol-info'), tocar = $('#sol-tocar');
+  painel.hidden = false;
+
+  function posicaoSol(ms) {
+    const r = Math.PI / 180, d = (ms - 946728000000) / 86400000;
+    const g = (357.529 + .98560028 * d) * r, q = 280.459 + .98564736 * d;
+    const L = (q + 1.915 * Math.sin(g) + .02 * Math.sin(2 * g)) * r, e = (23.439 - .00000036 * d) * r;
+    const ra = Math.atan2(Math.cos(e) * Math.sin(L), Math.cos(L)), dec = Math.asin(Math.sin(e) * Math.sin(L));
+    const H = ((18.697374558 + 24.06570982441908 * d) * 15 + loc.lon) * r - ra, f = loc.lat * r;
+    const el = Math.asin(Math.sin(f) * Math.sin(dec) + Math.cos(f) * Math.cos(dec) * Math.cos(H));
+    const az = Math.atan2(-Math.sin(H), Math.tan(dec) * Math.cos(f) - Math.sin(f) * Math.cos(H));
+    return { el: el / r, az: (az / r + 360) % 360 };
+  }
+  const partes = ms => Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: loc.fuso, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+    .formatToParts(new Date(ms)).map(p => [p.type, p.value]));
+  const desvio = ms => { const p = partes(ms); return Date.UTC(+p.year, p.month - 1, +p.day, +p.hour, +p.minute) - Math.floor(ms / 60000) * 60000; };
+  function instante([ano, mes, dia], minutos) {
+    const local = Date.UTC(ano, mes - 1, dia, 0, minutos);
+    return local - desvio(local - desvio(local));
+  }
+  const hhmm = m => `${dois(Math.floor(m / 60))}:${dois(m % 60)}`;
+  const RUMOS = ['norte', 'nordeste', 'leste', 'sudeste', 'sul', 'sudoeste', 'oeste', 'noroeste'];
+  const rumo = az => RUMOS[Math.round(az / 45) % 8];
+
+  /* Fachadas do prédio, com o azimute da normal de cada face */
+  const giro = (P.predio.rotacao || 0) * Math.PI / 180, lj = P.predio.laje, s = Math.sign(area(lj));
+  const faces = lj.map((a, i) => {
+    const b = lj[(i + 1) % lj.length], l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const nx = (b[1] - a[1]) / l * s, nz = -(b[0] - a[0]) / l * s;
+    const wx = nx * Math.cos(giro) + nz * Math.sin(giro), wz = -nx * Math.sin(giro) + nz * Math.cos(giro);
+    return (Math.atan2(wx, -wz) * 180 / Math.PI + (P.terreno.norte || 0) + 360) % 360;
+  });
+
+  const hoje = (() => { const p = partes(Date.now()); return [+p.year, +p.month, +p.day]; })();
+  const sul = loc.lat < 0;
+  const datas = [
+    ['hoje', 'Hoje', hoje],
+    ['03-20', `20 mar · ${sul ? 'outono' : 'primavera'}`, [hoje[0], 3, 20]],
+    ['06-21', `21 jun · ${sul ? 'inverno' : 'verão'}`, [hoje[0], 6, 21]],
+    ['09-22', `22 set · ${sul ? 'primavera' : 'outono'}`, [hoje[0], 9, 22]],
+    ['12-21', `21 dez · ${sul ? 'verão' : 'inverno'}`, [hoje[0], 12, 21]],
+  ];
+  data.innerHTML = datas.map(([v, t]) => `<option value="${v}">${t}</option>`).join('');
+  hora.value = Math.round((loc.horaInicial ?? 14) * 60);
+
+  function nascerPor(dia) {
+    /* -0,833° é o horizonte aparente, com refração; é o padrão dos horários oficiais */
+    const H0 = -.833;
+    let nasce = null, poe = null, antes = posicaoSol(instante(dia, 0)).el;
+    for (let m = 1; m < 1440; m++) {
+      const el = posicaoSol(instante(dia, m)).el;
+      if (antes <= H0 && el > H0 && nasce == null) nasce = m;
+      if (antes > H0 && el <= H0) poe = m;
+      antes = el;
+    }
+    return { nasce, poe };
+  }
+
+  function atualizar(minutos = Number(hora.value)) {
+    const dia = datas.find(d => d[0] === data.value)[2], m = Math.round(minutos);
+    const p = posicaoSol(instante(dia, m));
+    const cor = cena3d.sol(p);
+    solEstado.atual = p;
+    solEstado.ouvintes.forEach(f => f(p));
+    $('#quadro-3d').classList.toggle('escuro', p.el < -3);
+    document.body.style.setProperty('--ceu', cor);
+    document.body.classList.toggle('escuro', p.el < -3);
+    $('#sol-hora-txt').textContent = hhmm(m);
+    if (p.el > 0) {
+      const lit = [...new Set(faces.filter(f => Math.cos((f - p.az) * Math.PI / 180) > .1).map(rumo))];
+      info.textContent = `Sol a ${Math.round(p.el)}° de altura, vindo do ${rumo(p.az)}. Bate nas faces ${lit.join(', ').replace(/, ([^,]*)$/, ' e $1')}.`;
+    } else {
+      const { nasce, poe } = nascerPor(dia);
+      info.textContent = nasce == null ? 'Sol abaixo do horizonte o dia todo.' : `${p.el > -6 ? 'Crepúsculo' : 'Noite'}. O sol nasce às ${hhmm(nasce)} e se põe às ${hhmm(poe)}.`;
+    }
+  }
+
+  let animacao = null;
+  function parar() { cancelAnimationFrame(animacao); animacao = null; tocar.textContent = '▶'; tocar.setAttribute('aria-label', 'Passar o dia'); }
+  tocar.onclick = () => {
+    if (animacao) return parar();
+    if (Number(hora.value) >= 1435) hora.value = 300;
+    tocar.textContent = '❚❚';
+    tocar.setAttribute('aria-label', 'Pausar');
+    /* Uma hora do dia por segundo */
+    let minutos = Number(hora.value), ultimo = performance.now();
+    const passo = agora => {
+      minutos = Math.min(1435, minutos + (agora - ultimo) / 1000 * 60);
+      ultimo = agora;
+      hora.value = minutos;
+      atualizar(minutos);
+      if (minutos >= 1435) return parar();
+      animacao = requestAnimationFrame(passo);
+    };
+    animacao = requestAnimationFrame(passo);
+  };
+  hora.addEventListener('input', () => { parar(); atualizar(); });
+  data.addEventListener('change', () => atualizar());
+  atualizar();
+})();
+
+/* ---------- Planta em SVG ---------- */
+const CSS_PLANTA = `
+  .pl text { font-family: "Hanken Grotesk", system-ui, sans-serif; fill: #55594f; font-size: 25px; text-anchor: middle; dominant-baseline: middle; }
+  .pl .numero { fill: #1b1e1c; font-size: 66px; font-weight: 600; letter-spacing: -1px; }
+  .pl .m2 { font-size: 24px; }
+  .pl .piso { fill: #f6f5f0; }
+  .pl .piso-comum { fill: #e3e2d9; }
+  .pl .molhado { fill: #dfe3e2; }
+  .pl .movel { fill: #fbfaf7; stroke: #a9aaa2; stroke-width: 1.6; }
+  .pl .parede { stroke: #1b1e1c; stroke-linecap: butt; fill: none; }
+  .pl .pilar { fill: #1b1e1c; }
+  .pl .porta { fill: none; stroke: #1b1e1c; stroke-width: 1.6; }
+  .pl .janela { fill: none; stroke: #8c9490; stroke-width: 5; }
+  .pl .janela-luz { fill: none; stroke: #f6f5f0; stroke-width: 2; }
+  .pl .degrau { stroke: #8d8e86; stroke-width: 2; }
+  .pl .fora { stroke: #1b1e1c; stroke-width: 3; }
+  .pl .apto-area { fill: transparent; stroke: transparent; stroke-width: 8; stroke-linejoin: miter; cursor: pointer; outline: none; }
+  .pl .vendido .apto-area { fill: rgb(119 122 116 / .16); }
+  .pl .reservado .apto-area { fill: url(#hachura-reservado); }
+  .pl.com-selecao .apto:not(.sel) .apto-area { fill: rgb(243 242 237 / .62); }
+  .pl .apto:hover .apto-area, .pl .apto:focus-visible .apto-area, .pl .apto.sel .apto-area { fill: DESTAQUE; fill-opacity: .12; stroke: DESTAQUE; }
+  .pl .apto { outline: none; }
+`.replace(/DESTAQUE/g, P.ambiente.destaque || '#2a3ab8');
+
+function svgPlanta(a) {
+  const pl = P.plantas[a.planta];
+  const u = v => +(v * 100).toFixed(1);
+  const pts = p => p.map(([x, y]) => `${u(x)},${u(y)}`).join(' ');
+  const m = 40, w = u(pl.largura) + m * 2, h = u(pl.profundidade) + m * 2;
+  const aptoDa = tipo => a.apartamentos.find(x => x.tipo === tipo);
+  const o = [];
+  o.push(`<svg xmlns="http://www.w3.org/2000/svg" class="pl" viewBox="${-m} ${-m} ${w} ${h}" role="group" aria-label="Planta do andar ${a.numero}">`);
+  o.push(`<style>${CSS_PLANTA}</style>`);
+  o.push(`<defs>
+    <pattern id="hachura-fora" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="14" height="14" fill="#d5dfcd"/><line x1="0" y1="0" x2="0" y2="14" stroke="#a7b59d" stroke-width="2"/></pattern>
+    <pattern id="hachura-reservado" width="22" height="22" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="22" stroke="#777a74" stroke-opacity=".28" stroke-width="3"/></pattern>
+  </defs>`);
+  for (const e of pl.exteriores) o.push(`<polygon points="${pts(e.pontos)}" fill="url(#hachura-fora)" class="fora"/>`);
+  for (const un of pl.unidades) o.push(`<polygon class="piso" points="${pts(un.contorno)}"/>`);
+  for (const c of pl.areasComuns) o.push(`<polygon class="piso-comum" points="${pts(c.pontos)}"/>`);
+  for (const r of pl.molhados) o.push(`<rect class="molhado" x="${u(r[0])}" y="${u(r[1])}" width="${u(r[2])}" height="${u(r[3])}"/>`);
+  if (pl.escada) {
+    const [x, y, l, al] = pl.escada.ret;
+    o.push(`<rect class="movel" x="${u(x)}" y="${u(y)}" width="${u(l)}" height="${u(al)}"/>`);
+    for (let i = 1; i < pl.escada.degraus; i++) { const yy = u(y + al * i / pl.escada.degraus); o.push(`<line class="degrau" x1="${u(x)}" x2="${u(x + l)}" y1="${yy}" y2="${yy}"/>`); }
+  }
+  for (const k of pl.moveis) {
+    if (k.c) { o.push(`<circle class="movel" cx="${u(k.c[0])}" cy="${u(k.c[1])}" r="${u(k.c[2])}"/>`); continue; }
+    const [x, y, l, al] = k.r;
+    o.push(`<rect class="movel" x="${u(x)}" y="${u(y)}" width="${u(l)}" height="${u(al)}"/>`);
+    const s = .42;
+    if (k.cab === 'e') o.push(`<line class="movel" x1="${u(x + s)}" x2="${u(x + s)}" y1="${u(y)}" y2="${u(y + al)}"/>`);
+    if (k.cab === 'd') o.push(`<line class="movel" x1="${u(x + l - s)}" x2="${u(x + l - s)}" y1="${u(y)}" y2="${u(y + al)}"/>`);
+    if (k.cab === 'c') o.push(`<line class="movel" x1="${u(x)}" x2="${u(x + l)}" y1="${u(y + s)}" y2="${u(y + s)}"/>`);
+    if (k.cab === 'b') o.push(`<line class="movel" x1="${u(x)}" x2="${u(x + l)}" y1="${u(y + al - s)}" y2="${u(y + al - s)}"/>`);
+  }
+  o.push(`<polygon class="janela" points="${pts(pl.janelas)}"/><polygon class="janela-luz" points="${pts(pl.janelas)}"/>`);
+  for (const [x1, y1, x2, y2, e] of pl.paredes) o.push(`<line class="parede" x1="${u(x1)}" y1="${u(y1)}" x2="${u(x2)}" y2="${u(y2)}" stroke-width="${e * 100}"/>`);
+  for (const r of pl.pilares) o.push(`<rect class="pilar" x="${u(r[0])}" y="${u(r[1])}" width="${u(r[2])}" height="${u(r[3])}"/>`);
+  for (const [x, y, r, de, ate] of pl.portas) {
+    const p = g => [u(x + r * Math.cos(g * Math.PI / 180)), u(y + r * Math.sin(g * Math.PI / 180))];
+    const [ax, ay] = p(de), [bx, by] = p(ate);
+    o.push(`<path class="porta" d="M${u(x)} ${u(y)}L${ax} ${ay}A${u(r)} ${u(r)} 0 0 ${ate > de ? 1 : 0} ${bx} ${by}"/>`);
+  }
+  for (const t of pl.rotulos) o.push(`<text x="${u(t.x)}" y="${u(t.y)}">${esc(t.texto)}</text>`);
+  for (const un of pl.unidades) {
+    const ap = aptoDa(un.tipo);
+    if (!ap) continue;
+    o.push(`<text class="numero" x="${u(un.rotulo[0])}" y="${u(un.rotulo[1])}">${esc(ap.id)}</text>`);
+    o.push(`<text class="m2" x="${u(un.rotulo[0])}" y="${u(un.rotulo[1]) + 58}">${P.tipologias[ap.tipo].areaInterna} m²</text>`);
+    const estado = ap.status === 'disponivel' ? '' : `, ${NOME_ESTADO[ap.status].toLowerCase()}`;
+    o.push(`<g class="apto ${ap.status}" data-id="${esc(ap.id)}" tabindex="0" role="button" aria-label="Apartamento ${esc(ap.id)}, ${quartos(P.tipologias[ap.tipo].quartos)}, ${P.tipologias[ap.tipo].areaInterna} m²${esc(estado)}"><polygon class="apto-area" points="${pts(un.contorno)}"/></g>`);
+  }
+  if (pl.norte != null) {
+    const nx = u(pl.largura) + 8;
+    o.push(`<g transform="translate(${nx} -14) rotate(${pl.norte})"><text x="0" y="-16" style="font-size:20px">N</text><line x1="0" y1="0" x2="0" y2="44" stroke="#1b1e1c" stroke-width="3"/></g>`);
+  }
+  o.push('</svg>');
+  return o.join('');
+}
+
+/* ---------- Apartamento em 3D ---------- */
+const decimal = v => v.toLocaleString(E.idioma || 'pt-BR', { maximumFractionDigits: 1 });
+function planoDe(ap) {
+  const a = P.andares.find(x => x.numero === ap.andar), planta = P.plantas[a.planta];
+  return { planta, un: planta.unidades.find(u => u.tipo === ap.tipo) };
+}
+function comodosDe(ap) {
+  return (planoDe(ap).un?.comodos || []).map(c => {
+    const xs = c.pontos.map(p => p[0]), ys = c.pontos.map(p => p[1]);
+    const l = Math.max(...xs) - Math.min(...xs), a = Math.max(...ys) - Math.min(...ys), m = Math.abs(area(c.pontos));
+    return { ...c, area: m, medida: Math.abs(m - l * a) < .02 ? `${decimal(l)} × ${decimal(a)} m` : '' };
+  });
+}
+const tem3d = ap => cena3d.ok && !!P.apartamento3d && comodosDe(ap).length > 0;
+
+const apto3d = (() => {
+  const caixa = $('#quadro-3d'), canvas = $('#cena-apto'), camada = $('#etiquetas');
+  let renderer, scene, camera, controles, grupo, pisos = [], etiquetas = [], rodando = false;
+  let ceu, solLuz, disco, pontoApto, chaoSombra, luzesInt = [];
+  const giroPredio = (P.predio.rotacao || 0) * Math.PI / 180;
+  let medidaFit = 20, fixo = null, baixou = null, posicoes = [];
+  const raio = new THREE.Raycaster(), ponteiro = new THREE.Vector2(), v = new THREE.Vector3();
+
+  function iniciar() {
+    if (renderer) return;
+    const A = P.ambiente;
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(22, 1, 1, 400);
+    controles = new OrbitControls(camera, canvas);
+    controles.enablePan = false;
+    controles.enableDamping = true;
+    controles.dampingFactor = .08;
+    controles.minPolarAngle = .12;
+    controles.maxPolarAngle = 1.3;
+    ceu = new THREE.HemisphereLight(0xffffff, new THREE.Color(A.corBaixa), 2.35);
+    scene.add(ceu);
+    solLuz = new THREE.DirectionalLight(0xfffaf0, 1.05);
+    solLuz.position.set(-22, 44, 30);
+    solLuz.castShadow = true;
+    solLuz.shadow.mapSize.set(2048, 2048);
+    Object.assign(solLuz.shadow.camera, { left: -34, right: 34, top: 34, bottom: -34, near: 1, far: 220 });
+    solLuz.shadow.bias = -.0004;
+    solLuz.shadow.normalBias = .02;
+    scene.add(solLuz);
+    disco = criarDiscoSol(15);
+    disco.visible = false;
+    scene.add(disco);
+    pontoApto = criarPontoSol(caixa);
+    const chao = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), new THREE.ShadowMaterial({ opacity: .14 }));
+    chaoSombra = chao;
+    chao.rotation.x = -Math.PI / 2;
+    chao.position.y = -.01;
+    chao.receiveShadow = true;
+    scene.add(chao);
+    solEstado.ouvintes.push(aplicarSol);
+    new ResizeObserver(enquadrar).observe(caixa);
+    canvas.addEventListener('pointermove', e => { if (e.pointerType !== 'touch' && !e.buttons) marcar(apontar(e) ?? fixo); });
+    canvas.addEventListener('pointerleave', () => marcar(fixo));
+    canvas.addEventListener('pointerdown', e => { baixou = [e.clientX, e.clientY]; });
+    canvas.addEventListener('pointerup', e => {
+      if (!baixou || Math.hypot(e.clientX - baixou[0], e.clientY - baixou[1]) > 6) return;
+      const i = apontar(e);
+      fixar(i === fixo ? null : i);
+    });
+  }
+
+  function apontar(e) {
+    const r = canvas.getBoundingClientRect();
+    ponteiro.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1);
+    raio.setFromCamera(ponteiro, camera);
+    return raio.intersectObjects(pisos)[0]?.object.userData.i ?? null;
+  }
+  function marcar(i) {
+    pisos.forEach(p => p.material.color.copy(p.userData.i === i ? p.userData.ativa : p.userData.cor));
+    etiquetas.forEach((t, k) => t.classList.toggle('ativa', k === i));
+    document.querySelectorAll('[data-comodo]').forEach(b => b.classList.toggle('ativo', Number(b.dataset.comodo) === i));
+  }
+  function fixar(i) { fixo = i; marcar(i); }
+
+  function dentro([x, y], p) {
+    let d = false;
+    p.forEach(([a, b], i) => {
+      const [c, e] = p[(i + 1) % p.length];
+      if ((b > y) !== (e > y) && x < (c - a) * (y - b) / (e - b) + a) d = !d;
+    });
+    return d;
+  }
+  function perto(pt, p, tol) {
+    return p.some((a, i) => {
+      const b = p[(i + 1) % p.length], dx = b[0] - a[0], dy = b[1] - a[1];
+      const t = Math.max(0, Math.min(1, ((pt[0] - a[0]) * dx + (pt[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)));
+      return Math.hypot(pt[0] - a[0] - dx * t, pt[1] - a[1] - dy * t) < tol;
+    });
+  }
+  function recortar(a, b, p) {
+    const ts = [0, 1], dx = b[0] - a[0], dy = b[1] - a[1];
+    p.forEach((c, i) => {
+      const d = p[(i + 1) % p.length], ex = d[0] - c[0], ey = d[1] - c[1], k = dx * ey - dy * ex;
+      if (Math.abs(k) < 1e-9) return;
+      const t = ((c[0] - a[0]) * ey - (c[1] - a[1]) * ex) / k, u = ((c[0] - a[0]) * dy - (c[1] - a[1]) * dx) / k;
+      if (t > 0 && t < 1 && u >= 0 && u <= 1) ts.push(t);
+    });
+    ts.sort((m, n) => m - n);
+    const pedacos = [];
+    for (let i = 0; i < ts.length - 1; i++) {
+      const m = (ts[i] + ts[i + 1]) / 2;
+      if (dentro([a[0] + dx * m, a[1] + dy * m], p)) pedacos.push([[a[0] + dx * ts[i], a[1] + dy * ts[i]], [a[0] + dx * ts[i + 1], a[1] + dy * ts[i + 1]]]);
+    }
+    return pedacos;
+  }
+
+  /* Móveis: cada tipo vira caixas simples em escala real. Novos tipos entram aqui. */
+  function mobiliar(m, L) {
+    if (m.c) {
+      const [x, z, r] = m.c;
+      for (const [raioM, y, alt] of [[r, .73, .05], [.07, .37, .72]]) {
+        const c = malha(new THREE.CylinderGeometry(raioM, raioM, alt, 20), L.matMadeira);
+        c.position.set(x, y, z);
+        grupo.add(c);
+      }
+      return;
+    }
+    const [x, y, l, a] = m.r, cx = x + l / 2, cz = y + a / 2;
+    const d = { e: [1, 0], d: [-1, 0], c: [0, 1], b: [0, -1] }[m.cab] || [1, 0];
+    const longo = d[0] ? l : a, largo = d[0] ? a : l;
+    const ao = (lote, ao_, atr, yy, comp, larg, alt) => lote.caixa(cx + d[0] * ao_ - d[1] * atr, yy, cz + d[1] * ao_ + d[0] * atr, d[0] ? comp : larg, alt, d[0] ? larg : comp);
+    const pernas = (h, top) => {
+      L.madeira.caixa(cx, h, cz, l, top, a);
+      for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) L.madeira.caixa(cx + sx * (l / 2 - .06), (h - top / 2) / 2, cz + sz * (a / 2 - .06), .06, h - top / 2, .06);
+    };
+    switch (m.tipo) {
+      case 'cama':
+        L.branco.caixa(cx, .22, cz, l, .44, a);
+        ao(L.tecido, longo * .16, 0, .47, longo * .68, largo + .02, .08);
+        for (const s of [-1, 1]) ao(L.branco, -longo * .36, s * largo * .23, .5, .34, largo * .4, .14);
+        break;
+      case 'sofa':
+        L.tecido.caixa(cx, .2, cz, l, .4, a);
+        ao(L.tecido, -longo / 2 + .12, 0, .42, .24, largo, .84);
+        for (const s of [-1, 1]) ao(L.tecido, 0, s * (largo / 2 - .1), .3, longo, .2, .6);
+        break;
+      case 'mesa': pernas(.75, .05); break;
+      case 'mesaCentro': pernas(.38, .04); break;
+      case 'bancada':
+        L.branco.caixa(cx, .43, cz, l, .86, a);
+        L.pedra.caixa(cx, .88, cz, l + .03, .04, a + .03);
+        break;
+      case 'banheira':
+        L.branco.caixa(cx, .27, cz, l, .54, a);
+        L.vidroClaro.caixa(cx, .55, cz, l - .14, .02, a - .14);
+        break;
+      case 'pia':
+        L.branco.caixa(cx, .42, cz, l, .84, a);
+        L.vidroClaro.caixa(cx, .85, cz, l * .6, .02, a * .6);
+        break;
+      case 'box': L.vidroClaro.caixa(cx, .04, cz, l, .08, a); break;
+      default: break;
+    }
+  }
+
+  /* Sol, sombra e luz de dentro: de noite o sol some e os cômodos acendem */
+  function aplicarSol(p) {
+    if (!renderer) return;
+    const dia = clamp01(p.el / 12), noite = clamp01((2 - p.el) / 8), dir = direcaoSol(p, giroPredio);
+    solLuz.position.copy(dir).multiplyScalar(80);
+    solLuz.intensity = 1.3 * dia;
+    solLuz.color.set('#ffb36b').lerp(new THREE.Color('#fffaf0'), clamp01(p.el / 25));
+    chaoSombra.material.opacity = .14 * dia;
+    ceu.intensity = 2.35 - .15 * dia - noite * 1.2;
+    ceu.color.set('#ffffff').lerp(new THREE.Color('#9aaedc'), noite);
+    luzesInt.forEach(l => { l.intensity = noite * 26; });
+    disco.position.copy(dir).multiplyScalar(70);
+    ajustarDiscoSol(disco, p);
+  }
+
+  function montar(ap) {
+    if (grupo) {
+      scene.remove(grupo);
+      grupo.traverse(o => { if (o.isMesh) { if (o.geometry !== unidade) o.geometry.dispose(); o.material.dispose(); o.dispose?.(); } });
+    }
+    const { planta: pl, un } = planoDe(ap), cfg = P.apartamento3d, c = cfg.cores, altura = cfg.alturaParede;
+    const comodos = comodosDe(ap);
+    const tudo = comodos.flatMap(k => k.pontos).concat(un.contorno);
+    const minX = Math.min(...tudo.map(p => p[0])), maxX = Math.max(...tudo.map(p => p[0]));
+    const minY = Math.min(...tudo.map(p => p[1])), maxY = Math.max(...tudo.map(p => p[1]));
+    grupo = new THREE.Group();
+    grupo.position.set(-(minX + maxX) / 2, 0, -(minY + maxY) / 2);
+    scene.add(grupo);
+    medidaFit = Math.hypot(maxX - minX, maxY - minY) * .78 + 2;
+
+    /* Teto invisível: não aparece, mas faz sombra, então o sol só entra pelas janelas e pelo terraço */
+    grupo.add(malha(prisma(un.contorno, .04, altura + .17), new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false }), { recebe: false }));
+    luzesInt.forEach(l => grupo.remove(l));
+    luzesInt = comodos.filter(k => !k.externo).slice(0, 8).map(k => {
+      const l = new THREE.PointLight('#ffd2a0', 0, 0, 2);
+      l.position.set(k.rotulo[0], altura - .3, k.rotulo[1]);
+      grupo.add(l);
+      return l;
+    });
+
+    const expandido = deslocar(un.contorno, .14);
+    const exteriores = comodos.filter(k => k.externo).map(k => k.pontos);
+    const naFachada = pt => perto(pt, pl.janelas, .15) || exteriores.some(p => perto(pt, p, .15));
+
+    grupo.add(malha(prisma(deslocar(un.contorno, .1), .14), lambert(c.base)));
+    for (const p of exteriores) grupo.add(malha(prisma(p, .14), lambert(c.base)));
+
+    const paredes = lote(lambert(c.parede)), cortes = lote(lambert(c.corte));
+    const vidros = lote(new THREE.MeshLambertMaterial({ color: c.vidro, transparent: true, opacity: .34, depthWrite: false }));
+    const caixilhos = lote(lambert(c.caixilho)), portasL = lote(lambert(c.movel));
+    const L = {
+      branco: lote(lambert(c.movel)), tecido: lote(lambert(c.tecido)), madeira: lote(lambert(c.madeira)),
+      pedra: lote(lambert(c.bancada)), vidroClaro: lote(lambert(c.vidro)), matMadeira: lambert(c.madeira),
+    };
+
+    const envidracar = (a, b) => {
+      const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy);
+      vidros.viga(a, b, altura / 2 + .1, .05, altura - .2);
+      caixilhos.viga(a, b, altura + .03, .07, .06);
+      caixilhos.viga(a, b, .17, .07, .06);
+      const n = Math.max(1, Math.round(l / 1.3));
+      for (let i = 0; i <= n; i++) caixilhos.caixa(a[0] + dx * i / n, altura / 2 + .1, a[1] + dy * i / n, .06, altura - .2, .06);
+    };
+
+    const cobertos = [];
+    for (const [x1, y1, x2, y2, e] of pl.paredes) {
+      for (const [a, b] of recortar([x1, y1], [x2, y2], expandido)) {
+        const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+        if (l < .25) continue;
+        const meio = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+        cobertos.push([a, b]);
+        if (e <= .12 && naFachada(meio)) { envidracar(a, b); continue; }
+        const ux = (b[0] - a[0]) / l * e / 2, uy = (b[1] - a[1]) / l * e / 2;
+        const u = [a[0] - ux, a[1] - uy], w = [b[0] + ux, b[1] + uy];
+        paredes.viga(u, w, altura / 2 + .14, e, altura);
+        cortes.viga(u, w, altura + .155, e + .01, .03);
+      }
+    }
+    /* Trechos do contorno sem parede: vidro na fachada, vão aberto no restante */
+    un.contorno.forEach((a, i) => {
+      const b = un.contorno[(i + 1) % un.contorno.length], dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy);
+      if (!l) return;
+      const passo = .1, n = Math.ceil(l / passo);
+      let inicio = null;
+      for (let k = 0; k <= n; k++) {
+        const t = k / n, pt = [a[0] + dx * t, a[1] + dy * t];
+        const livre = k < n && !cobertos.some(([p, q]) => perto(pt, [p, q], .2));
+        if (livre && inicio == null) inicio = t;
+        if (!livre && inicio != null) {
+          const u = [a[0] + dx * inicio, a[1] + dy * inicio], w = pt;
+          if (Math.hypot(w[0] - u[0], w[1] - u[1]) > .3 && naFachada([(u[0] + w[0]) / 2, (u[1] + w[1]) / 2])) envidracar(u, w);
+          inicio = null;
+        }
+      }
+    });
+    for (const [x, y, l, a] of pl.pilares) {
+      if (!dentro([x + l / 2, y + a / 2], expandido)) continue;
+      paredes.caixa(x + l / 2, altura / 2 + .14, y + a / 2, l, altura, a);
+      cortes.caixa(x + l / 2, altura + .155, y + a / 2, l + .01, .03, a + .01);
+    }
+    for (const [x, y, r, de] of pl.portas) {
+      if (!dentro([x, y], expandido)) continue;
+      const g = de * Math.PI / 180;
+      portasL.viga([x, y], [x + r * Math.cos(g), y + r * Math.sin(g)], 1.19, .04, 2.1);
+    }
+    for (const m of pl.moveis) {
+      const centro = m.c ? [m.c[0], m.c[1]] : [m.r[0] + m.r[2] / 2, m.r[1] + m.r[3] / 2];
+      if (dentro(centro, un.contorno)) mobiliar(m, L);
+    }
+    /* Guarda-corpo das áreas externas: só nos lados fora do contorno */
+    for (const p of exteriores) {
+      p.forEach((a, i) => {
+        const b = p[(i + 1) % p.length], meio = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+        if (perto(meio, un.contorno, .25)) return;
+        caixilhos.viga(a, b, 1.2, .05, .05);
+        vidros.viga(a, b, .68, .03, 1);
+      });
+    }
+    pisos = comodos.map((k, i) => {
+      const cor = new THREE.Color(k.externo ? c.externo : k.molhado ? c.molhado : c.piso);
+      const m = malha(prisma(k.pontos, .03, .14), lambert(cor), { lanca: false });
+      m.userData = { i, cor, ativa: cor.clone().lerp(new THREE.Color(P.ambiente.destaque), .42) };
+      grupo.add(m);
+      return m;
+    });
+    [paredes, cortes, caixilhos, portasL, L.branco, L.tecido, L.madeira, L.pedra, L.vidroClaro].forEach(l => l.criar(grupo));
+    vidros.criar(grupo, { lanca: false, recebe: false });
+
+    camada.innerHTML = comodos.map(k => `<span class="etq"><b>${esc(k.nome)}</b>${m2(+k.area.toFixed(1))}</span>`).join('');
+    etiquetas = [...camada.children];
+    posicoes = comodos.map(k => k.rotulo);
+    fixo = null;
+    /* A câmera nasce do lado da fachada; giro3d nos dados substitui essa escolha */
+    const centroY = (Math.min(...un.contorno.map(p => p[1])) + Math.max(...un.contorno.map(p => p[1]))) / 2;
+    posicaoInicial(un.giro3d ?? (centroY < Math.max(...pl.janelas.map(p => p[1])) * .4 ? Math.PI - .42 : .42));
+  }
+
+  function posicaoInicial(giro) {
+    const elev = 1.02;
+    camera.position.set(Math.sin(giro) * Math.cos(elev), Math.sin(elev), Math.cos(giro) * Math.cos(elev));
+    enquadrar();
+  }
+  function enquadrar() {
+    const w = caixa.clientWidth, h = caixa.clientHeight;
+    if (!w || !h) return;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    const meia = Math.tan(camera.fov * Math.PI / 360);
+    const dist = medidaFit / 2 / Math.min(meia, meia * camera.aspect) * 1.12;
+    camera.position.setLength(dist);
+    controles.target.set(0, .8, 0);
+    controles.minDistance = dist * .5;
+    controles.maxDistance = dist * 1.5;
+    controles.update();
+  }
+  function quadro() {
+    controles.update();
+    renderer.render(scene, camera);
+    const w = caixa.clientWidth, h = caixa.clientHeight;
+    etiquetas.forEach((t, i) => {
+      v.set(posicoes[i][0], .3, posicoes[i][1]);
+      grupo.localToWorld(v).project(camera);
+      t.style.transform = `translate(-50%, -50%) translate(${(v.x + 1) / 2 * w}px, ${(1 - v.y) / 2 * h}px)`;
+    });
+    posicionarPontoSol(pontoApto, disco.position, controles.target, camera, w, h, disco.visible, Math.min(w, h) * .4);
+  }
+
+  return {
+    mostrar(ap, pendente) {
+      iniciar();
+      montar(ap);
+      if (solEstado.atual) aplicarSol(solEstado.atual);
+      if (!rodando) { rodando = true; renderer.setAnimationLoop(quadro); }
+      fixar(pendente ?? null);
+    },
+    parar() { if (rodando) { rodando = false; renderer.setAnimationLoop(null); } },
+    marcar(i) { if (rodando) marcar(i ?? fixo); },
+    fixar(i) { if (rodando) fixar(i === fixo ? null : i); },
+  };
+})();
+
+/* ---------- Telas ---------- */
+const est = { andar: null, apto: null, svgDe: null, modo3d: false, comodo: null };
+const quadroPlanta = $('#quadro-planta'), quadro3d = $('#quadro-3d'), ficha = $('#ficha'), dica = $('#dica-apto');
+
+function irPara(rota) { if (location.hash.slice(1) === rota) aplicarRota(); else location.hash = rota; }
+const achar = id => aptos.find(x => x.id === id);
+
+function aplicarRota() {
+  const m = location.hash.match(/^#(andar|apto)\/([\w.-]+?)(\/3d)?$/);
+  let andar = null, apto = null;
+  if (m?.[1] === 'andar') andar = P.andares.find(a => String(a.numero) === m[2]) ?? null;
+  if (m?.[1] === 'apto' && achar(m[2])) { apto = achar(m[2]); andar = P.andares.find(a => a.numero === apto.andar); }
+  est.andar = andar; est.apto = apto;
+  est.modo3d = !!(apto && m?.[3] && tem3d(apto));
+  const painelSol = $('#sol'), destinoSol = est.modo3d ? quadro3d : $('#vista-predio');
+  if (painelSol.parentElement !== destinoSol) destinoSol.appendChild(painelSol);
+  painelSol.classList.toggle('no-apto', est.modo3d);
+  const emPlanta = !!andar;
+  document.body.dataset.vista = emPlanta ? 'planta' : 'predio';
+  $('#vista-predio').hidden = emPlanta;
+  $('#vista-planta').hidden = !emPlanta;
+  $('#veu').hidden = emPlanta;
+  cena3d.ativar(!emPlanta);
+  dica.hidden = true;
+  if (emPlanta) mostrarPlanta(andar, apto);
+  else fecharFicha();
+  if (!est.modo3d) apto3d.parar();
+}
+
+function mostrarPlanta(a, ap) {
+  $('#andar-titulo').textContent = `Andar ${a.numero}`;
+  $('#andar-resumo').textContent = resumoAndar(a);
+  const i = andares.indexOf(a);
+  $('#subir').disabled = i === 0;
+  $('#descer').disabled = i === andares.length - 1;
+  $('#legenda').hidden = !!ap;
+  $('#modos').hidden = !(ap && tem3d(ap));
+  $('#modo-planta').setAttribute('aria-pressed', !est.modo3d);
+  $('#modo-3d').setAttribute('aria-pressed', est.modo3d);
+  document.body.dataset.modo = est.modo3d ? '3d' : 'planta';
+  quadroPlanta.hidden = est.modo3d;
+  quadro3d.hidden = !est.modo3d;
+  $('#pe-planta').textContent = est.modo3d ? 'Arraste para girar. Móveis ilustrativos e medidas aproximadas.' : 'Selecione um apartamento para ver detalhes e preço';
+  if (est.svgDe !== a.numero) { quadroPlanta.innerHTML = svgPlanta(a); est.svgDe = a.numero; }
+  const svg = $('svg', quadroPlanta);
+  svg.classList.toggle('com-selecao', !!ap);
+  svg.querySelectorAll('.apto').forEach(g => g.classList.toggle('sel', g.dataset.id === ap?.id));
+  if (ap) abrirFicha(ap); else fecharFicha();
+  if (est.modo3d) {
+    apto3d.mostrar(ap, est.comodo);
+    est.comodo = null;
+  }
+  const sel = svg.querySelector('.apto.sel');
+  if (sel && quadroPlanta.scrollWidth > quadroPlanta.clientWidth) {
+    const r = sel.getBoundingClientRect(), q = quadroPlanta.getBoundingClientRect();
+    quadroPlanta.scrollLeft += r.left + r.width / 2 - (q.left + q.width / 2);
+  }
+}
+
+function fecharFicha() { ficha.classList.remove('aberta'); ficha.innerHTML = ''; }
+function abrirFicha(ap) {
+  const t = ap.t, vendido = ap.status !== 'disponivel', comodos = comodosDe(ap);
+  ficha.innerHTML = `<div class="ficha-corpo">
+    <button class="voltar" id="ficha-voltar" type="button"><span aria-hidden="true">←</span> Planta do andar</button>
+    <p class="sub">Andar ${ap.andar} de ${P.andares.length}</p>
+    <h3>Apartamento ${esc(ap.id)}</h3>
+    <p class="desc">${esc(t.descricao)}</p>
+    <div class="preco">
+      <strong>${ap.status === 'vendido' ? `<s>${dinheiro(ap.preco)}</s>` : dinheiro(ap.preco)}</strong>
+      <span class="estado ${ap.status}">${NOME_ESTADO[ap.status]}</span>
+    </div>
+    <dl class="fatos">
+      <div><dt>Área interna</dt><dd>${m2(t.areaInterna)}</dd></div>
+      <div><dt>Quartos</dt><dd>${t.quartos}</dd></div>
+      <div><dt>Banheiros</dt><dd>${t.banheiros}</dd></div>
+      <div><dt>${esc(t.nomeExterna)}</dt><dd>${m2(t.areaExterna)}</dd></div>
+      <div><dt>Área total</dt><dd>${m2(t.areaTotal)}</dd></div>
+    </dl>
+    <dl class="linhas">
+      <div><dt>${esc(t.nomeSala)}</dt><dd>${m2(t.areaSala)}</dd></div>
+      <div><dt>Distribuição</dt><dd>${esc(t.distribuicao)}</dd></div>
+      <div><dt>Orientação</dt><dd>${esc(t.orientacao)}</dd></div>
+    </dl>
+    ${comodos.length ? `<h4 class="tit-comodos">Cômodos</h4>
+    <ul class="comodos">${comodos.map((c, i) => `<li><button type="button" data-comodo="${i}"><span>${esc(c.nome)}${c.medida ? `<small>${c.medida}</small>` : ''}</span><b>${m2(+c.area.toFixed(1))}</b></button></li>`).join('')}</ul>` : ''}
+    <button class="botao forte" id="ficha-contato" type="button">${vendido ? 'Perguntar sobre apartamentos similares' : 'Tenho interesse neste apartamento'}</button>
+    <button class="botao" id="ficha-baixar" type="button">Baixar planta</button>
+    <p class="nota">${esc(E.notaFicha)}</p>
+  </div>`;
+  ficha.classList.add('aberta');
+  $('#ficha-voltar').onclick = () => irPara(`andar/${ap.andar}`);
+  $('#ficha-contato').onclick = () => abrirContato(ap);
+  $('#ficha-baixar').onclick = () => baixarPlanta(ap);
+}
+
+function baixarPlanta(ap) {
+  const a = P.andares.find(x => x.numero === ap.andar);
+  const url = URL.createObjectURL(new Blob([svgPlanta(a)], { type: 'image/svg+xml' }));
+  const l = Object.assign(document.createElement('a'), { href: url, download: `planta-andar-${ap.andar}.svg` });
+  l.click();
+  URL.revokeObjectURL(url);
+}
+
+function abrirContato(ap) {
+  const corpo = $('#contato-corpo'), modal = $('#modal-contato');
+  const sub = ap ? `Apartamento ${ap.id}, andar ${ap.andar}, ${dinheiro(ap.preco)}${ap.status === 'disponivel' ? '' : `, ${NOME_ESTADO[ap.status].toLowerCase()}`}.` : E.nome;
+  const msg = ap ? `Gostaria de saber mais sobre o apartamento ${ap.id}.` : '';
+  corpo.innerHTML = `<header><h2>Contato</h2><button class="fechar" type="button" aria-label="Fechar">×</button></header>
+    <p class="sub">${esc(sub)}</p>
+    <form id="form-contato">
+      <label class="campo">Nome <input name="nome" required autocomplete="name"></label>
+      <label class="campo">E-mail <input name="email" type="email" required autocomplete="email"></label>
+      <label class="campo">Telefone <small>(opcional)</small> <input name="telefone" type="tel" autocomplete="tel"></label>
+      <label class="campo">Mensagem <textarea name="mensagem">${esc(msg)}</textarea></label>
+      <label class="marcar"><input type="checkbox" name="visita"> Quero agendar uma visita</label>
+      <button class="botao forte" type="submit">Enviar mensagem</button>
+    </form>`;
+  $('.fechar', corpo).onclick = () => modal.close();
+  $('#form-contato').onsubmit = e => {
+    e.preventDefault();
+    const d = new FormData(e.target), zap = P.contato?.whatsapp;
+    if (zap) {
+      const texto = [d.get('mensagem'), `Nome: ${d.get('nome')}`, `E-mail: ${d.get('email')}`, d.get('telefone') && `Telefone: ${d.get('telefone')}`, d.get('visita') && 'Quero agendar uma visita.'].filter(Boolean).join('\n');
+      open(`https://wa.me/${zap}?text=${encodeURIComponent(texto)}`, '_blank', 'noopener');
+    }
+    corpo.innerHTML = `<header><h2>Obrigado</h2><button class="fechar" type="button" aria-label="Fechar">×</button></header>
+      <p class="sub">${zap ? 'Sua mensagem foi aberta no WhatsApp. Envie por lá para concluir.' : 'Esta é uma demonstração: nenhum dado foi enviado.'}</p>
+      <button class="botao" type="button" id="contato-ok">Fechar</button>`;
+    $('.fechar', corpo).onclick = $('#contato-ok').onclick = () => modal.close();
+  };
+  modal.showModal();
+}
+
+function abrirSobre() {
+  const c = $('#sobre-corpo'), modal = $('#modal-sobre');
+  c.innerHTML = `<header><h2>${esc(E.sobre.titulo)}</h2><button class="fechar" type="button" aria-label="Fechar">×</button></header>
+    <div style="height:12px"></div>
+    ${E.sobre.paragrafos.map(p => `<p>${esc(p)}</p>`).join('')}
+    <dl class="grade-sobre">${E.sobre.fatos.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
+    <p class="nota">${esc(E.sobre.nota)}</p>`;
+  $('.fechar', c).onclick = () => modal.close();
+  modal.showModal();
+}
+
+/* ---------- Eventos ---------- */
+$('#lista-andares').addEventListener('click', e => { const b = e.target.closest('.andar'); if (b) irPara(`andar/${b.dataset.andar}`); });
+$('#lista-andares').addEventListener('pointerover', e => { const b = e.target.closest('.andar'); if (b) cena3d.marcar(Number(b.dataset.andar)); });
+$('#lista-andares').addEventListener('pointerleave', () => cena3d.marcar(null));
+$('#lista-andares').addEventListener('focusin', e => { const b = e.target.closest('.andar'); if (b) cena3d.marcar(Number(b.dataset.andar)); });
+$('#voltar').onclick = $('#ir-residencias').onclick = $('#marca').onclick = () => irPara('');
+$('#ir-sobre').onclick = abrirSobre;
+$('#ir-contato').onclick = () => abrirContato(est.apto);
+function trocarAndar(passo) {
+  const i = andares.indexOf(est.andar) - passo;
+  if (andares[i]) irPara(`andar/${andares[i].numero}`);
+}
+$('#modo-planta').onclick = () => { if (est.apto) irPara(`apto/${est.apto.id}`); };
+$('#modo-3d').onclick = () => { if (est.apto) irPara(`apto/${est.apto.id}/3d`); };
+ficha.addEventListener('click', e => {
+  const b = e.target.closest('[data-comodo]');
+  if (!b) return;
+  const i = Number(b.dataset.comodo);
+  if (est.modo3d) { apto3d.fixar(i); return; }
+  est.comodo = i;
+  irPara(`apto/${est.apto.id}/3d`);
+});
+ficha.addEventListener('pointerover', e => { const b = e.target.closest('[data-comodo]'); if (b && e.pointerType !== 'touch') apto3d.marcar(Number(b.dataset.comodo)); });
+ficha.addEventListener('pointerout', e => { if (e.target.closest('[data-comodo]') && e.pointerType !== 'touch') apto3d.marcar(null); });
+$('#subir').onclick = () => trocarAndar(1);
+$('#descer').onclick = () => trocarAndar(-1);
+
+function mostrarDica(g, x, y) {
+  const ap = achar(g.dataset.id), t = ap.t;
+  const estado = ap.status === 'disponivel' ? dinheiro(ap.preco) : NOME_ESTADO[ap.status].toLowerCase();
+  dica.innerHTML = `<b>Apartamento ${esc(ap.id)}</b>${quartos(t.quartos)}, ${t.areaInterna} m², ${esc(estado)}`;
+  dica.hidden = false;
+  const lar = dica.offsetWidth;
+  dica.style.left = `${Math.min(x + 16, innerWidth - lar - 12)}px`;
+  dica.style.top = `${y + 18}px`;
+}
+quadroPlanta.addEventListener('pointermove', e => {
+  const g = e.target.closest?.('.apto');
+  if (g && e.pointerType !== 'touch') mostrarDica(g, e.clientX, e.clientY); else dica.hidden = true;
+});
+quadroPlanta.addEventListener('pointerleave', () => { dica.hidden = true; });
+quadroPlanta.addEventListener('click', e => { const g = e.target.closest?.('.apto'); if (g) { dica.hidden = true; irPara(`apto/${g.dataset.id}`); } });
+quadroPlanta.addEventListener('keydown', e => {
+  const g = e.target.closest?.('.apto');
+  if (g && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); irPara(`apto/${g.dataset.id}`); }
+});
+quadroPlanta.addEventListener('focusin', e => {
+  const g = e.target.closest?.('.apto');
+  if (g && g.matches(':focus-visible')) { const r = g.getBoundingClientRect(); mostrarDica(g, r.left + r.width / 2, r.top + r.height / 2); }
+});
+quadroPlanta.addEventListener('focusout', () => { dica.hidden = true; });
+addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !document.querySelector('dialog[open]') && est.apto) irPara(`andar/${est.apto.andar}`);
+});
+addEventListener('hashchange', aplicarRota);
+aplicarRota();
+</script>
+</body>
+</html>
